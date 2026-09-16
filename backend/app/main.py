@@ -42,16 +42,58 @@ app.include_router(sn_router, prefix="/api/integrations/servicenow", tags=["Serv
 
 @app.get("/health")
 async def health():
-    return {"status": "healthy"}
+    return {
+        "status": "HEALTHY",
+        "service": settings.APP_NAME,
+        "environment": settings.ENVIRONMENT,
+        "automation_mode": settings.AUTOMATION_MODE
+    }
 
 @app.get("/ready")
-async def ready(db = Depends(get_db)):
+async def ready(db: AsyncSession = Depends(get_db)):
+    components = {}
+    is_ready = True
+    overall_status = "HEALTHY"
+
+    # 1. Database Check
     try:
         await db.execute(text("SELECT 1"))
-        db_status = "ok"
+        components["database"] = "HEALTHY"
+    except Exception as e:
+        components["database"] = "UNAVAILABLE"
+        is_ready = False
+        overall_status = "UNAVAILABLE"
+
+    # 2. Redis Check
+    try:
+        from redis.asyncio import from_url
+        r = from_url(settings.REDIS_URL, socket_connect_timeout=2)
+        await r.ping()
+        await r.aclose()
+        components["redis"] = "HEALTHY"
     except Exception:
-        db_status = "error"
-    return {"status": "ready" if db_status == "ok" else "error", "database": db_status}
+        components["redis"] = "DEGRADED"  # API works with degraded caching/background jobs
+        if overall_status == "HEALTHY":
+            overall_status = "DEGRADED"
+
+    # 3. Worker State
+    components["worker"] = "HEALTHY" if components.get("redis") == "HEALTHY" else "DEGRADED"
+
+    # 4. ServiceNow Integration State
+    if settings.SERVICENOW_MOCK:
+        components["servicenow"] = "HEALTHY (MOCK)"
+    else:
+        components["servicenow"] = "HEALTHY" if settings.SERVICENOW_URL else "DEGRADED"
+
+    # 5. Notification Provider
+    components["notifications"] = f"HEALTHY ({settings.EMAIL_PROVIDER})"
+
+    return {
+        "status": overall_status,
+        "ready": is_ready,
+        "components": components
+    }
+
 
 @app.websocket("/api/ws")
 async def websocket_endpoint(websocket: WebSocket, token: str):

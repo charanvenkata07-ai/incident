@@ -11,7 +11,9 @@ async def test_health_endpoints():
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         resp = await client.get("/health")
         assert resp.status_code == 200
-        assert resp.json() == {"status": "healthy"}
+        assert resp.json()["status"] == "HEALTHY"
+        assert "environment" in resp.json()
+
 
 @pytest.mark.asyncio
 async def test_admin_authorization_rejected_for_employee():

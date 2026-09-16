@@ -28,6 +28,10 @@ services:
           property: connectionString
       - key: JWT_SECRET
         generateValue: true
+      - key: ENVIRONMENT
+        value: STAGING
+      - key: AUTOMATION_MODE
+        value: DRY_RUN
       - key: AUTO_ASSIGNMENT_ENABLED
         value: "true"
       - key: ASSIGNMENT_STRATEGY
@@ -37,7 +41,7 @@ services:
       - key: EMAIL_PROVIDER
         value: MOCK
       - key: CORS_ORIGINS
-        value: '["https://incidentflow.vercel.app"]'
+        value: '["https://incidentflow.vercel.app","https://incidentflow-frontend.onrender.com"]'
 
   # 2. Celery Background Worker
   - type: worker
@@ -57,10 +61,29 @@ services:
           type: redis
           name: incidentflow-redis
           property: connectionString
+      - key: ENVIRONMENT
+        value: STAGING
+      - key: AUTOMATION_MODE
+        value: DRY_RUN
       - key: SERVICENOW_MOCK
         value: "true"
       - key: EMAIL_PROVIDER
         value: MOCK
+
+  # 3. Next.js Frontend Web Service
+  - type: web
+    name: incidentflow-frontend
+    runtime: node
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    plan: starter
+    envVars:
+      - key: NEXT_PUBLIC_API_URL
+        fromService:
+          type: web
+          name: incidentflow-api
+          property: host
 
 # Managed PostgreSQL Database
 databases:

@@ -105,3 +105,41 @@ async def test_one_available_employee():
     assignment = await engine.process_incident(incident)
     assert assignment == mock_assignment
     engine._create_assignment.assert_called_once_with(incident, emp_ravi, "LEAST_WORKLOAD")
+
+@pytest.mark.asyncio
+async def test_shadow_mode_decision_logging():
+    mock_db = AsyncMock()
+    engine = AssignmentEngine(mock_db)
+
+    incident = Incident(
+        id=uuid.uuid4(),
+        incident_number="INC1969799",
+        short_description="Shadow verification test incident",
+        priority="P2"
+    )
+
+    emp_ravi = create_mock_employee("Ravi")
+    engine._is_auto_assignment_enabled = AsyncMock(return_value=True)
+    engine._get_required_skills = AsyncMock(return_value=set())
+    engine.eligibility.find_eligible_employees = AsyncMock(return_value=[emp_ravi])
+    engine._get_strategy = AsyncMock(return_value="LEAST_WORKLOAD")
+    engine.workload_service.get_workloads = AsyncMock(return_value={emp_ravi.id: 0})
+    engine._is_dry_run = AsyncMock(return_value=False)
+    engine._is_shadow_mode = AsyncMock(return_value=True) # SHADOW active
+
+    engine.audit_service.log = AsyncMock()
+    engine._create_assignment = AsyncMock()
+
+    result = await engine.process_incident(incident)
+
+    # In SHADOW mode, no real assignment is persisted
+    assert result is None
+    engine._create_assignment.assert_not_called()
+
+    # Decision audit trail must be recorded
+    engine.audit_service.log.assert_called_once()
+    args, kwargs = engine.audit_service.log.call_args
+    assert args[0] == "SHADOW_ASSIGN"
+    assert args[1] == "INCIDENT"
+    assert kwargs["new_value"]["recommended"] == str(emp_ravi.id)
+

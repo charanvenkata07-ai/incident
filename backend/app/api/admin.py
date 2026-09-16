@@ -398,5 +398,60 @@ async def retry_sync_failure(id: uuid.UUID, db: AsyncSession = Depends(get_db)):
     audit = AuditService(db)
     await audit.log(action="RETRY_SYNC", entity_type="INTEGRATION", entity_id=failure.id, reason="Manual retry triggered from Failure Recovery Center")
     await db.commit()
-    return {"message": "Retry executed successfully", "status": failure.status}
+# 8. SYSTEM SETTINGS & AUTOMATION MODE GO-LIVE CONTROLS
+@router.get("/settings")
+async def get_system_settings(db: AsyncSession = Depends(get_db)):
+    res = await db.execute(select(SystemSetting))
+    all_settings = {s.key: s.value for s in res.scalars().all()}
+
+    auto_enabled = all_settings.get("auto_assignment_enabled", {}).get("enabled", settings.AUTO_ASSIGNMENT_ENABLED)
+    mode = all_settings.get("automation_mode", {}).get("mode", settings.AUTOMATION_MODE)
+    strategy = all_settings.get("assignment_strategy", {}).get("strategy", settings.ASSIGNMENT_STRATEGY)
+
+    return {
+        "auto_assignment_enabled": auto_enabled,
+        "automation_mode": mode,
+        "assignment_strategy": strategy,
+        "dry_run_mode": mode == "DRY_RUN",
+        "shadow_mode": mode == "SHADOW",
+        "servicenow_connected": True,
+        "environment": settings.ENVIRONMENT
+    }
+
+@router.post("/automation/mode")
+async def set_automation_mode(payload: dict, db: AsyncSession = Depends(get_db)):
+    target_mode = payload.get("mode", "").upper()
+    confirmed = payload.get("confirmed", False)
+
+    valid_modes = ["DRY_RUN", "SHADOW", "LIVE", "PAUSED"]
+    if target_mode not in valid_modes:
+        raise HTTPException(status_code=400, detail=f"Invalid mode. Must be one of {valid_modes}")
+
+    # Enforce explicit admin confirmation before allowing switch to LIVE
+    if target_mode == "LIVE" and not confirmed:
+        raise HTTPException(
+            status_code=400,
+            detail="Switching to LIVE requires explicit confirmation (confirmed: true)."
+        )
+
+    # Save to database
+    res = await db.execute(select(SystemSetting).where(SystemSetting.key == "automation_mode"))
+    setting = res.scalar_one_or_none()
+    if not setting:
+        setting = SystemSetting(key="automation_mode", value={"mode": target_mode})
+        db.add(setting)
+    else:
+        setting.value = {"mode": target_mode}
+
+    audit = AuditService(db)
+    await audit.log(
+        action="CHANGE_AUTOMATION_MODE",
+        entity_type="SYSTEM",
+        new_value={"mode": target_mode},
+        reason=f"Administrator set automation mode to {target_mode}"
+    )
+
+    await db.commit()
+    return {"message": f"Automation mode updated to {target_mode}", "mode": target_mode}
+
 
