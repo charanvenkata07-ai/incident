@@ -37,3 +37,31 @@ async def test_admin_authorization_rejected_for_employee():
             assert resp.json()["detail"] == "Not enough permissions"
     finally:
         app.dependency_overrides.clear()
+
+@pytest.mark.asyncio
+async def test_unauthenticated_requests_fail():
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        resp = await client.get("/api/admin/dashboard")
+        # No bearer token -> 401 Unauthorized
+        assert resp.status_code == 401
+
+@pytest.mark.asyncio
+async def test_employee_cannot_access_settings():
+    employee_user = User(
+        id=uuid4(),
+        email="employee@test.com",
+        full_name="Employee Test",
+        role="EMPLOYEE",
+        is_active=True
+    )
+    app.dependency_overrides[get_current_user] = lambda: employee_user
+    try:
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as client:
+            resp = await client.get("/api/admin/settings", headers={"Authorization": "Bearer token"})
+            assert resp.status_code == 403
+            assert resp.json()["detail"] == "Not enough permissions"
+    finally:
+        app.dependency_overrides.clear()
+

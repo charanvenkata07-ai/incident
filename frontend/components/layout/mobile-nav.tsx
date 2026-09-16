@@ -11,14 +11,25 @@ export function MobileNav() {
   const pathname = usePathname();
   const { user } = useAuth();
   
-  if (user?.role === 'ADMIN') return null; // Simple assumption for demo
+  const isEmployee = user?.role === 'EMPLOYEE' || user?.role === 'SUPERVISOR';
+  const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERVISOR';
 
-  const links = [
+  const employeeLinks = [
     { href: '/dashboard', icon: LayoutDashboard, label: 'Home' },
     { href: '/my-work', icon: ClipboardList, label: 'Work' },
     { href: '/my-shift', icon: Clock, label: 'Shift' },
     { href: '/notifications', icon: Bell, label: 'Alerts' },
   ];
+
+  const adminLinks = [
+    { href: '/admin', icon: LayoutDashboard, label: 'Command' },
+    { href: '/admin/employees', icon: ClipboardList, label: 'Staff' },
+    { href: '/admin/assignments', icon: Clock, label: 'Queue' },
+    { href: '/admin/settings', icon: Bell, label: 'Safety' },
+  ];
+
+  const links = user?.role === 'ADMIN' ? adminLinks : employeeLinks;
+
 
   return (
     <div className="md:hidden fixed bottom-0 left-0 right-0 border-t bg-background flex items-center justify-around h-16 pb-safe z-50">
