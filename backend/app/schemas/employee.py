@@ -24,3 +24,22 @@ class EmployeeListResponse(BaseModel):
 
 class AvailabilityUpdate(BaseModel):
     availability_status: str
+
+class EmployeeCreate(BaseModel):
+    email: str
+    full_name: str
+    password: Optional[str] = "password123"
+    team_name: Optional[str] = None
+    employee_code: Optional[str] = None
+    role: Optional[str] = "EMPLOYEE"
+    skills: List[str] = []
+
+class EmployeeUpdate(BaseModel):
+    full_name: Optional[str] = None
+    email: Optional[str] = None
+    team_name: Optional[str] = None
+    availability_status: Optional[str] = None
+    is_present: Optional[bool] = None
+    role: Optional[str] = None
+    skills: Optional[List[str]] = None
+

@@ -1,0 +1,70 @@
+services:
+  # 1. FastAPI Web Service
+  - type: web
+    name: incidentflow-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -e . && alembic upgrade head
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: APP_NAME
+        value: IncidentFlow
+      - key: DEBUG
+        value: "false"
+      - key: LOG_LEVEL
+        value: INFO
+      - key: DEFAULT_TIMEZONE
+        value: Asia/Kolkata
+      - key: DATABASE_URL
+        fromDatabase:
+          name: incidentflow-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: incidentflow-redis
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: AUTO_ASSIGNMENT_ENABLED
+        value: "true"
+      - key: ASSIGNMENT_STRATEGY
+        value: SKILL_PLUS_WORKLOAD
+      - key: SERVICENOW_MOCK
+        value: "true"
+      - key: EMAIL_PROVIDER
+        value: MOCK
+      - key: CORS_ORIGINS
+        value: '["https://incidentflow.vercel.app"]'
+
+  # 2. Celery Background Worker
+  - type: worker
+    name: incidentflow-worker
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -e .
+    startCommand: celery -A app.workers.celery_app worker --loglevel=info
+    plan: starter
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: incidentflow-postgres
+          property: connectionString
+      - key: REDIS_URL
+        fromService:
+          type: redis
+          name: incidentflow-redis
+          property: connectionString
+      - key: SERVICENOW_MOCK
+        value: "true"
+      - key: EMAIL_PROVIDER
+        value: MOCK
+
+# Managed PostgreSQL Database
+databases:
+  - name: incidentflow-postgres
+    databaseName: incidentflow
+    user: incidentflow
+    plan: starter

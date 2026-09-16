@@ -4,6 +4,7 @@ services:
   postgres:
     image: postgres:16-alpine
     container_name: incidentflow-db
+    restart: unless-stopped
     environment:
       POSTGRES_USER: incidentflow
       POSTGRES_PASSWORD: incidentflow_dev
@@ -21,6 +22,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: incidentflow-redis
+    restart: unless-stopped
     ports:
       - "6379:6379"
     healthcheck:
@@ -28,6 +30,60 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: incidentflow-backend
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://incidentflow:incidentflow_dev@postgres:5432/incidentflow
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: dev-secret-change-in-production
+      SERVICENOW_MOCK: "true"
+      AUTO_ASSIGNMENT_ENABLED: "true"
+      ASSIGNMENT_STRATEGY: "SKILL_PLUS_WORKLOAD"
+      EMAIL_PROVIDER: "MOCK"
+      CORS_ORIGINS: '["http://localhost:3000"]'
+    ports:
+      - "8000:8000"
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: incidentflow-worker
+    restart: unless-stopped
+    command: ["celery", "-A", "app.workers.celery_app", "worker", "--loglevel=info"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://incidentflow:incidentflow_dev@postgres:5432/incidentflow
+      REDIS_URL: redis://redis:6379/0
+      SERVICENOW_MOCK: "true"
+      EMAIL_PROVIDER: "MOCK"
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: incidentflow-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000
+    depends_on:
+      - backend
 
 volumes:
   pgdata:

@@ -38,3 +38,9 @@ class LoggingMiddleware(BaseHTTPMiddleware):
         )
         
         return response
+
+
+def get_request_id() -> str | None:
+    """Get the current request ID from context."""
+    return request_id_context.get()
+

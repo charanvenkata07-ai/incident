@@ -7,11 +7,23 @@ from app.integrations.servicenow.client import ServiceNowClient
 class SyncService:
     def __init__(self, db: AsyncSession):
         self.db = db
-        self.client = ServiceNowClient("url", "user", "pass")
+        self.client = self._get_client()
+
+    def _get_client(self):
+        from app.core.config import settings
+        from app.integrations.servicenow.mock import MockServiceNowClient
+        if settings.SERVICENOW_MOCK:
+            return MockServiceNowClient()
+        return ServiceNowClient(
+            base_url=settings.SERVICENOW_URL,
+            username=settings.SERVICENOW_USERNAME,
+            password=settings.SERVICENOW_PASSWORD,
+        )
 
     async def sync_assignment_to_servicenow(self, incident: Incident, employee: Employee):
+        client = self._get_client()
         try:
-            await self.client.update_assignment(incident.servicenow_sys_id, employee.user.full_name)
+            await client.update_assignment(incident.servicenow_sys_id, employee.user.full_name)
             incident.sync_status = 'SYNCED'
         except Exception as e:
             incident.sync_status = 'SYNC_FAILED'

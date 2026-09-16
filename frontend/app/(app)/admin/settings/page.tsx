@@ -5,8 +5,16 @@ import { useAdminSettings } from '@/hooks/use-admin';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 
+interface SettingsData {
+  auto_assignment_enabled: boolean;
+  assignment_strategy: string;
+  dry_run_mode: boolean;
+  shadow_mode: boolean;
+  servicenow_connected: boolean;
+}
+
 export default function AdminSettingsPage() {
-  const { data: settings, isLoading } = useAdminSettings();
+  const { data: settings, isLoading } = useAdminSettings() as { data: SettingsData | undefined; isLoading: boolean };
 
   if (isLoading) return <div className="space-y-4"><Skeleton className="h-8 w-48 mb-6"/><Card><CardContent className="h-32" /></Card></div>;
 

@@ -25,6 +25,9 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 def get_password_hash(password: str) -> str:
     return pwd_context.hash(password)
 
+# Alias for consistency across imports
+hash_password = get_password_hash
+
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
     if expires_delta:
@@ -35,8 +38,19 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
     encoded_jwt = jwt.encode(to_encode, settings.JWT_SECRET, algorithm=settings.JWT_ALGORITHM)
     return encoded_jwt
 
+def verify_token(token: str) -> dict:
+    """Verify a JWT token and return the payload. Raises on invalid/expired tokens."""
+    try:
+        payload = jwt.decode(token, settings.JWT_SECRET, algorithms=[settings.JWT_ALGORITHM])
+        return payload
+    except JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Could not validate credentials",
+        )
+
 async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: AsyncSession = Depends(get_db)):
-    from app.models.user import User  # Late import to avoid circular dep
+    from app.models.user import User
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate credentials",
@@ -58,9 +72,13 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: As
         raise credentials_exception
     return user
 
-def require_role(role: Role):
+def require_role(*roles: Role):
+    """Dependency factory that checks if user has one of the required roles."""
     async def role_checker(current_user = Depends(get_current_user)):
-        if current_user.role != role.value:
+        user_role = current_user.role
+        allowed = [r.value if isinstance(r, Role) else r for r in roles]
+        if user_role not in allowed:
             raise HTTPException(status_code=403, detail="Not enough permissions")
         return current_user
     return role_checker
+

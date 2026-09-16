@@ -21,6 +21,14 @@ class Settings(BaseSettings):
     DRY_RUN_MODE: bool = False
     SHADOW_MODE: bool = False
     LOG_LEVEL: str = "INFO"
+    # Email settings (MOCK, SMTP)
+    EMAIL_PROVIDER: str = "MOCK"  # "MOCK" or "SMTP"
+    SMTP_HOST: str = "smtp.gmail.com"
+    SMTP_PORT: int = 587
+    SMTP_USER: str = ""
+    SMTP_PASSWORD: str = ""
+    SMTP_FROM: str = "notifications@incidentflow.dev"
+    SMTP_TLS: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
