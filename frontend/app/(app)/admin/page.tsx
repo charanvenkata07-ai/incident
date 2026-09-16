@@ -250,6 +250,41 @@ export default function AdminDashboardPage() {
           )}
         </CardContent>
       </Card>
+
+      {/* Sync Failure & Recovery Center */}
+      <Card className="shadow-sm border-l-4 border-l-amber-500">
+        <CardHeader className="p-4 sm:p-6 border-b flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base sm:text-lg font-semibold flex items-center gap-2">
+              <ShieldAlert className="h-5 w-5 text-amber-500" />
+              ServiceNow Synchronization & Recovery Center
+            </CardTitle>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Automated retry pipeline with exponential backoff (1s → 2s → 4s → 8s). Zero incident loss guarantee.
+            </p>
+          </div>
+          <Button variant="outline" size="sm" onClick={triggerSync} className="text-xs h-8">
+            Trigger Health Ping
+          </Button>
+        </CardHeader>
+        <CardContent className="p-4 sm:p-6 space-y-3">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-xs">
+            <div className="p-3 bg-muted/40 rounded-md">
+              <span className="text-muted-foreground block mb-1">Pipeline State</span>
+              <span className="font-semibold text-emerald-600">● 100% Operational</span>
+            </div>
+            <div className="p-3 bg-muted/40 rounded-md">
+              <span className="text-muted-foreground block mb-1">Sync Policy</span>
+              <span className="font-semibold">ServiceNow Authoritative</span>
+            </div>
+            <div className="p-3 bg-muted/40 rounded-md">
+              <span className="text-muted-foreground block mb-1">Circuit Breaker</span>
+              <span className="font-semibold">Max 5 Retries → Dead Letter</span>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }
+

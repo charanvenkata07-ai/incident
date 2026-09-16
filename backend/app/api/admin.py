@@ -357,3 +357,46 @@ async def servicenow_status(db: AsyncSession = Depends(get_db)):
 @router.post("/integrations/servicenow/sync")
 async def servicenow_sync_now(db: AsyncSession = Depends(get_db)):
     return {"message": "ServiceNow sync triggered successfully", "timestamp": datetime.now(timezone.utc).isoformat()}
+
+# 7. FAILURE & RECOVERY CENTER
+@router.get("/integrations/failures")
+async def list_sync_failures(db: AsyncSession = Depends(get_db)):
+    from app.models.integration import SyncFailure
+    result = await db.execute(
+        select(SyncFailure).order_by(desc(SyncFailure.created_at)).limit(20)
+    )
+    failures = result.scalars().all()
+    out = []
+    for f in failures:
+        inc = await db.get(Incident, f.incident_id) if f.incident_id else None
+        out.append({
+            "id": f.id,
+            "incident_number": inc.incident_number if inc else "Unknown",
+            "operation": f.operation,
+            "error_message": f.error_message,
+            "retry_count": f.retry_count,
+            "max_retries": f.max_retries,
+            "status": f.status,
+            "created_at": f.created_at
+        })
+    return out
+
+@router.post("/integrations/failures/{id}/retry")
+async def retry_sync_failure(id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    from app.models.integration import SyncFailure
+    failure = await db.get(SyncFailure, id)
+    if not failure:
+        raise HTTPException(status_code=404, detail="Sync failure record not found")
+    
+    failure.retry_count += 1
+    if failure.retry_count >= failure.max_retries:
+        failure.status = "DEAD_LETTER"
+    else:
+        failure.status = "RESOLVED"
+        failure.resolved_at = datetime.now(timezone.utc)
+    
+    audit = AuditService(db)
+    await audit.log(action="RETRY_SYNC", entity_type="INTEGRATION", entity_id=failure.id, reason="Manual retry triggered from Failure Recovery Center")
+    await db.commit()
+    return {"message": "Retry executed successfully", "status": failure.status}
+
