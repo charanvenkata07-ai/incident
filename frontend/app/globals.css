@@ -1,0 +1,99 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: #ffffff;
+    --foreground: #09090b;
+    
+    --card: #ffffff;
+    --card-foreground: #09090b;
+    
+    --popover: #ffffff;
+    --popover-foreground: #09090b;
+    
+    --primary: #18181b;
+    --primary-foreground: #fafafa;
+    
+    --secondary: #f4f4f5;
+    --secondary-foreground: #18181b;
+    
+    --muted: #f4f4f5;
+    --muted-foreground: #71717a;
+    
+    --accent: #f4f4f5;
+    --accent-foreground: #18181b;
+    
+    --destructive: #ef4444;
+    --destructive-foreground: #fafafa;
+    
+    --border: #e4e4e7;
+    --input: #e4e4e7;
+    --ring: #18181b;
+    
+    --radius: 0.5rem;
+  }
+  
+  .dark {
+    --background: #09090b;
+    --foreground: #fafafa;
+    
+    --card: #09090b;
+    --card-foreground: #fafafa;
+    
+    --popover: #09090b;
+    --popover-foreground: #fafafa;
+    
+    --primary: #fafafa;
+    --primary-foreground: #18181b;
+    
+    --secondary: #27272a;
+    --secondary-foreground: #fafafa;
+    
+    --muted: #27272a;
+    --muted-foreground: #a1a1aa;
+    
+    --accent: #27272a;
+    --accent-foreground: #fafafa;
+    
+    --destructive: #7f1d1d;
+    --destructive-foreground: #fafafa;
+    
+    --border: #27272a;
+    --input: #27272a;
+    --ring: #d4d4d8;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-[color:var(--border)];
+  }
+  body {
+    @apply bg-[color:var(--background)] text-[color:var(--foreground)];
+    font-feature-settings: "rlig" 1, "calt" 1;
+    scroll-behavior: smooth;
+  }
+  
+  ::-moz-selection {
+    @apply bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900;
+  }
+  ::selection {
+    @apply bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900;
+  }
+
+  ::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-transparent;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-zinc-200 rounded-full dark:bg-zinc-800;
+  }
+  ::-webkit-scrollbar-thumb:hover {
+    @apply bg-zinc-300 dark:bg-zinc-700;
+  }
+}
