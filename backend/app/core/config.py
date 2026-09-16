@@ -21,8 +21,10 @@ class Settings(BaseSettings):
     DRY_RUN_MODE: bool = False
     SHADOW_MODE: bool = False
     LOG_LEVEL: str = "INFO"
-    # Email settings (MOCK, SMTP)
-    EMAIL_PROVIDER: str = "MOCK"  # "MOCK" or "SMTP"
+    ENVIRONMENT: str = "DEVELOPMENT" # "DEVELOPMENT", "STAGING", "PRODUCTION"
+    AUTOMATION_MODE: str = "DRY_RUN" # "DRY_RUN", "SHADOW", "LIVE"
+    # Email settings (MOCK, STAGING, PRODUCTION, SMTP)
+    EMAIL_PROVIDER: str = "MOCK"
     SMTP_HOST: str = "smtp.gmail.com"
     SMTP_PORT: int = 587
     SMTP_USER: str = ""
@@ -31,5 +33,18 @@ class Settings(BaseSettings):
     SMTP_TLS: bool = True
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
+
+    def validate_production_safety(self):
+        """Refuses startup if running in production with unsafe settings."""
+        if self.ENVIRONMENT.upper() == "PRODUCTION":
+            if self.JWT_SECRET == "dev-secret-change-in-production":
+                raise ValueError("FATAL: Cannot run in PRODUCTION with default JWT_SECRET!")
+            if not self.DATABASE_URL:
+                raise ValueError("FATAL: DATABASE_URL must be configured in PRODUCTION!")
+            if not self.REDIS_URL:
+                raise ValueError("FATAL: REDIS_URL must be configured in PRODUCTION!")
+            if not self.SERVICENOW_MOCK and not (self.SERVICENOW_URL and self.SERVICENOW_USERNAME and self.SERVICENOW_PASSWORD):
+                raise ValueError("FATAL: ServiceNow credentials missing for PRODUCTION environment!")
+
 
 settings = Settings()

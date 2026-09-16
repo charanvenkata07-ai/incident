@@ -225,6 +225,8 @@ class AssignmentEngine:
         return settings.ASSIGNMENT_STRATEGY
 
     async def _is_dry_run(self) -> bool:
+        if settings.AUTOMATION_MODE.upper() == "DRY_RUN":
+            return True
         from app.models.settings import SystemSetting
         result = await self.db.execute(
             select(SystemSetting).where(SystemSetting.key == 'dry_run_mode')
@@ -235,6 +237,8 @@ class AssignmentEngine:
         return False
 
     async def _is_shadow_mode(self) -> bool:
+        if settings.AUTOMATION_MODE.upper() == "SHADOW":
+            return True
         from app.models.settings import SystemSetting
         result = await self.db.execute(
             select(SystemSetting).where(SystemSetting.key == 'shadow_mode')

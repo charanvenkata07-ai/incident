@@ -199,9 +199,13 @@ export default function AdminDashboardPage() {
           <span className="font-mono font-semibold">SKILL + WORKLOAD</span>
         </div>
         <div className="p-3 bg-card border rounded-lg flex items-center justify-between">
-          <span className="text-muted-foreground">Automation Status:</span>
-          <span className={`font-semibold ${autoStatus === 'active' ? 'text-emerald-600' : 'text-rose-600'}`}>
-            ● {autoStatus === 'active' ? 'ENABLED' : 'PAUSED'}
+          <span className="text-muted-foreground">Automation Mode:</span>
+          <span className={`font-semibold ${
+            autoStatus === 'paused'
+              ? 'text-rose-600'
+              : 'text-amber-500'
+          }`}>
+            ● {autoStatus === 'paused' ? 'PAUSED' : 'DRY RUN (PROTECTED)'}
           </span>
         </div>
         <div className="p-3 bg-card border rounded-lg flex items-center justify-between">

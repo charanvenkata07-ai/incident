@@ -15,9 +15,11 @@ from contextlib import asynccontextmanager
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup: could create tables here if not using alembic
+    # Startup validation: aborts if production environment is insecure
+    settings.validate_production_safety()
     yield
     # Shutdown
+
 
 app = FastAPI(title="IncidentFlow API", lifespan=lifespan)
 
