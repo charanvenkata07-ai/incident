@@ -2,10 +2,12 @@
 
 import * as React from 'react';
 import { useMyShift } from '@/hooks/use-my-shift';
+import Link from 'next/link';
 import { Card, CardContent } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { EmployeeCard } from '@/components/employee-card';
 import { StatusBadge } from '@/components/status-badge';
-import { Clock } from 'lucide-react';
+import { Clock, MessageSquare, Users2 } from 'lucide-react';
 import { EmptyState } from '@/components/empty-state';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -31,8 +33,25 @@ export default function MyShiftPage() {
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight">Your Shift</h1>
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <Users2 className="h-6 w-6 text-indigo-600" />
+            <h1 className="text-2xl font-bold tracking-tight">
+              {data.employee.team_name ? `${data.employee.team_name} — My Team` : 'My Team'}
+            </h1>
+          </div>
+          <p className="text-sm text-muted-foreground mt-0.5">
+            Active operational group and shift roster status
+          </p>
+        </div>
+
+        <Button asChild className="bg-indigo-600 hover:bg-indigo-700 text-white shadow-sm font-semibold">
+          <Link href="/team-chat" className="flex items-center gap-2">
+            <MessageSquare className="h-4 w-4" />
+            <span>💬 TEAM CHAT</span>
+          </Link>
+        </Button>
       </div>
 
       <Card>

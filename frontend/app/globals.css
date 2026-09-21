@@ -4,66 +4,92 @@
 
 @layer base {
   :root {
-    --background: #ffffff;
-    --foreground: #09090b;
+    --background: #F7F9FC;
+    --foreground: #071A33;
     
-    --card: #ffffff;
-    --card-foreground: #09090b;
+    --card: #FFFFFF;
+    --card-foreground: #071A33;
     
-    --popover: #ffffff;
-    --popover-foreground: #09090b;
+    --popover: #FFFFFF;
+    --popover-foreground: #071A33;
     
-    --primary: #18181b;
-    --primary-foreground: #fafafa;
+    --primary: #087CFF;
+    --primary-foreground: #FFFFFF;
     
-    --secondary: #f4f4f5;
-    --secondary-foreground: #18181b;
+    --secondary: #F1F5F9;
+    --secondary-foreground: #071A33;
     
-    --muted: #f4f4f5;
-    --muted-foreground: #71717a;
+    --muted: #F1F5F9;
+    --muted-foreground: #667085;
     
-    --accent: #f4f4f5;
-    --accent-foreground: #18181b;
+    --accent: #F1F5F9;
+    --accent-foreground: #071A33;
     
-    --destructive: #ef4444;
-    --destructive-foreground: #fafafa;
+    --destructive: #EF4444;
+    --destructive-foreground: #FFFFFF;
     
-    --border: #e4e4e7;
-    --input: #e4e4e7;
-    --ring: #18181b;
+    --border: rgba(15, 23, 42, 0.08);
+    --input: rgba(15, 23, 42, 0.12);
+    --ring: #087CFF;
     
-    --radius: 0.5rem;
+    --radius: 0.75rem;
   }
   
   .dark {
-    --background: #09090b;
-    --foreground: #fafafa;
+    --background: #020817;
+    --foreground: #F7F9FC;
     
-    --card: #09090b;
-    --card-foreground: #fafafa;
+    --card: #071426;
+    --card-foreground: #F7F9FC;
     
-    --popover: #09090b;
-    --popover-foreground: #fafafa;
+    --popover: #071426;
+    --popover-foreground: #F7F9FC;
     
-    --primary: #fafafa;
-    --primary-foreground: #18181b;
+    --primary: #149BFF;
+    --primary-foreground: #FFFFFF;
     
-    --secondary: #27272a;
-    --secondary-foreground: #fafafa;
+    --secondary: #0B1B31;
+    --secondary-foreground: #F7F9FC;
     
-    --muted: #27272a;
-    --muted-foreground: #a1a1aa;
+    --muted: #0B1B31;
+    --muted-foreground: #94A3B8;
     
-    --accent: #27272a;
-    --accent-foreground: #fafafa;
+    --accent: #0B1B31;
+    --accent-foreground: #F7F9FC;
     
-    --destructive: #7f1d1d;
-    --destructive-foreground: #fafafa;
+    --destructive: #EF4444;
+    --destructive-foreground: #FFFFFF;
     
-    --border: #27272a;
-    --input: #27272a;
-    --ring: #d4d4d8;
+    --border: rgba(255, 255, 255, 0.08);
+    --input: rgba(255, 255, 255, 0.12);
+    --ring: #149BFF;
   }
+}
+
+.ios-glass {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(15, 23, 42, 0.08);
+}
+
+.dark .ios-glass {
+  background: rgba(7, 20, 38, 0.75);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ios-surface {
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 8px 30px rgba(15, 23, 42, 0.04);
+}
+
+.dark .ios-surface {
+  background: #071426;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.25);
 }
 
 @layer base {
@@ -71,9 +97,20 @@
     @apply border-[color:var(--border)];
   }
   body {
-    @apply bg-[color:var(--background)] text-[color:var(--foreground)];
+    background-color: #f8fafc;
+    color: #09090b;
     font-feature-settings: "rlig" 1, "calt" 1;
     scroll-behavior: smooth;
+  }
+  
+  /* Ensure all text inside white backgrounds is crisp, high-contrast black */
+  .bg-white, .bg-card, [class*="bg-white"], [class*="bg-card"] {
+    color: #09090b;
+  }
+
+  /* High contrast label and description text */
+  .text-muted-foreground {
+    color: #27272a !important;
   }
   
   ::-moz-selection {

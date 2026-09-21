@@ -8,17 +8,35 @@ export function cn(...inputs: ClassValue[]) {
 
 export function formatDate(dateString: string | null | undefined): string {
   if (!dateString) return '';
-  return format(parseISO(dateString), 'MMM d, yyyy');
+  try {
+    const d = typeof dateString === 'string' ? parseISO(dateString) : new Date(dateString);
+    if (isNaN(d.getTime())) return '';
+    return format(d, 'MMM d, yyyy');
+  } catch {
+    return '';
+  }
 }
 
 export function formatTime(dateString: string | null | undefined): string {
   if (!dateString) return '';
-  return format(parseISO(dateString), 'h:mm a');
+  try {
+    const d = typeof dateString === 'string' ? parseISO(dateString) : new Date(dateString);
+    if (isNaN(d.getTime())) return '';
+    return format(d, 'h:mm a');
+  } catch {
+    return '';
+  }
 }
 
 export function formatRelativeTime(dateString: string | null | undefined): string {
   if (!dateString) return '';
-  return formatDistanceToNow(parseISO(dateString), { addSuffix: true });
+  try {
+    const d = typeof dateString === 'string' ? parseISO(dateString) : new Date(dateString);
+    if (isNaN(d.getTime())) return '';
+    return formatDistanceToNow(d, { addSuffix: true });
+  } catch {
+    return '';
+  }
 }
 
 export function getGreeting(): string {
@@ -28,8 +46,9 @@ export function getGreeting(): string {
   return 'Good evening';
 }
 
-export function getPriorityColor(priority: string): string {
-  switch (priority.toUpperCase()) {
+export function getPriorityColor(priority?: string | null): string {
+  if (!priority) return 'default';
+  switch (String(priority).toUpperCase()) {
     case 'P1': return 'destructive';
     case 'P2': return 'warning';
     case 'P3': return 'warning';
@@ -38,8 +57,9 @@ export function getPriorityColor(priority: string): string {
   }
 }
 
-export function getStatusColor(status: string): string {
-  switch (status.toUpperCase()) {
+export function getStatusColor(status?: string | null): string {
+  if (!status) return 'default';
+  switch (String(status).toUpperCase()) {
     case 'NEW':
     case 'ASSIGNED': return 'info';
     case 'ACKNOWLEDGED': return 'warning';
@@ -51,8 +71,9 @@ export function getStatusColor(status: string): string {
   }
 }
 
-export function getAvailabilityColor(status: string): string {
-  switch (status.toUpperCase()) {
+export function getAvailabilityColor(status?: string | null): string {
+  if (!status) return 'bg-zinc-500';
+  switch (String(status).toUpperCase()) {
     case 'AVAILABLE': return 'bg-green-500';
     case 'BUSY': return 'bg-yellow-500';
     case 'BREAK': return 'bg-orange-500';

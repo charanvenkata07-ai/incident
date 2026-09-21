@@ -61,7 +61,7 @@ async def test_full_incident_flow_end_to_end():
     emp_ravi.user = user_ravi
     emp_ravi.skills = []
 
-    user_kiran = User(id=uuid.uuid4(), full_name="Kiran Patel", email="pvcharan975@gmail.com")
+    user_kiran = User(id=uuid.uuid4(), full_name="Kiran Patel", email="kiran.patel@incidentflow.dev", role="EMPLOYEE")
     emp_kiran = Employee(id=uuid.uuid4(), user_id=user_kiran.id, availability_status="AVAILABLE", is_present=True)
     emp_kiran.user = user_kiran
     emp_kiran.skills = []

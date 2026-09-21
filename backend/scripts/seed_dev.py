@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from app.core.config import settings
+from app.core.database import engine, async_session_maker
 from app.core.security import get_password_hash
 from app.models import (
     Base, User, Team, Employee, Skill, EmployeeSkill, Shift, ShiftAssignment,
@@ -16,7 +17,6 @@ from app.models import (
 
 RECIPIENT_EMAILS = [
     "charanvenkata07@gmail.com",
-    "pvcharan975@gmail.com",
     "charanvenkata975@gmail.com",
     "ugjggug26@gmail.com",
     "venkatacharan927@gmail.com",
@@ -30,20 +30,18 @@ RECIPIENT_EMAILS = [
 ]
 
 async def seed_dev():
-    engine = create_async_engine(settings.DATABASE_URL)
-    async_session = async_sessionmaker(engine, expire_on_commit=False)
-
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
 
-    async with async_session() as session:
+    async with async_session_maker() as session:
         # 1. System Administrative Users
         users_data = [
-            {"email": "admin@incidentflow.dev", "password": "admin123", "full_name": "Admin User", "role": "ADMIN"},
-            {"email": "supervisor@incidentflow.dev", "password": "super123", "full_name": "Supervisor", "role": "SUPERVISOR"},
-            {"email": "ravi@incidentflow.dev", "password": "password123", "full_name": "Ravi Kumar", "role": "EMPLOYEE"},
-            {"email": "kiran@incidentflow.dev", "password": "password123", "full_name": "Kiran Patel", "role": "EMPLOYEE"},
-            {"email": "suresh@incidentflow.dev", "password": "password123", "full_name": "Suresh Reddy", "role": "EMPLOYEE"},
+            {"email": "pvcharan975@gmail.com", "password": "pvcharan12345PV", "full_name": "Administrator (pvcharan975)", "role": "ADMIN"},
+            {"email": "admin@incidentflow.dev", "password": "pvcharan12345PV", "full_name": "Admin User", "role": "ADMIN"},
+            {"email": "supervisor@incidentflow.dev", "password": "pvcharan12345PV", "full_name": "Supervisor", "role": "SUPERVISOR"},
+            {"email": "ravi@incidentflow.dev", "password": "pvcharan12345", "full_name": "Ravi Kumar", "role": "EMPLOYEE"},
+            {"email": "kiran@incidentflow.dev", "password": "pvcharan12345", "full_name": "Kiran Patel", "role": "EMPLOYEE"},
+            {"email": "suresh@incidentflow.dev", "password": "pvcharan12345", "full_name": "Suresh Reddy", "role": "EMPLOYEE"},
         ]
 
         # Add the requested development recipient list as real test employees
@@ -51,7 +49,7 @@ async def seed_dev():
             name_part = email.split('@')[0].replace('.', ' ').capitalize()
             users_data.append({
                 "email": email,
-                "password": "password123",
+                "password": "pvcharan12345",
                 "full_name": f"Engineer {name_part}",
                 "role": "EMPLOYEE"
             })
@@ -151,6 +149,7 @@ async def seed_dev():
         shifts_data = [
             {"name": "Morning Shift", "start_time": time(9, 0), "end_time": time(12, 0), "is_overnight": False},
             {"name": "Afternoon Shift", "start_time": time(12, 0), "end_time": time(15, 0), "is_overnight": False},
+            {"name": "Evening Shift", "start_time": time(15, 0), "end_time": time(22, 0), "is_overnight": False},
             {"name": "Night Shift", "start_time": time(22, 0), "end_time": time(6, 0), "is_overnight": True},
         ]
         shifts_map = {}
@@ -165,21 +164,22 @@ async def seed_dev():
 
         # 6. Shift Assignments & Presence for today
         today = date.today()
-        morning_shift = shifts_map["Morning Shift"]
-        for email in ["ravi@incidentflow.dev", "kiran@incidentflow.dev", "suresh@incidentflow.dev"]:
-            emp = emps_map[email]
-            result = await session.execute(
-                select(ShiftAssignment).where(
-                    ShiftAssignment.shift_id == morning_shift.id,
-                    ShiftAssignment.employee_id == emp.id,
-                    ShiftAssignment.date == today
+        for s_name in ["Morning Shift", "Afternoon Shift", "Evening Shift", "Night Shift"]:
+            curr_shift = shifts_map[s_name]
+            for email in ["ravi@incidentflow.dev", "kiran@incidentflow.dev", "suresh@incidentflow.dev"]:
+                emp = emps_map[email]
+                result = await session.execute(
+                    select(ShiftAssignment).where(
+                        ShiftAssignment.shift_id == curr_shift.id,
+                        ShiftAssignment.employee_id == emp.id,
+                        ShiftAssignment.date == today
+                    )
                 )
-            )
-            sa_rec = result.scalar_one_or_none()
-            if not sa_rec:
-                sa_rec = ShiftAssignment(shift_id=morning_shift.id, employee_id=emp.id, date=today)
-                session.add(sa_rec)
-                await session.flush()
+                sa_rec = result.scalar_one_or_none()
+                if not sa_rec:
+                    sa_rec = ShiftAssignment(shift_id=curr_shift.id, employee_id=emp.id, date=today)
+                    session.add(sa_rec)
+                    await session.flush()
 
             if email in ["ravi@incidentflow.dev", "kiran@incidentflow.dev"]:
                 pres_res = await session.execute(

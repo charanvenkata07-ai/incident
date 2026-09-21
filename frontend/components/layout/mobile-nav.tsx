@@ -3,7 +3,7 @@
 import * as React from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, ClipboardList, Clock, Bell } from 'lucide-react';
+import { LayoutDashboard, ClipboardList, Clock, Bell, GitBranch, MessageSquare, Users2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
 
@@ -15,14 +15,18 @@ export function MobileNav() {
   const isAdmin = user?.role === 'ADMIN' || user?.role === 'SUPERVISOR';
 
   const employeeLinks = [
-    { href: '/dashboard', icon: LayoutDashboard, label: 'Home' },
-    { href: '/my-work', icon: ClipboardList, label: 'Work' },
-    { href: '/my-shift', icon: Clock, label: 'Shift' },
-    { href: '/notifications', icon: Bell, label: 'Alerts' },
+    { href: '/dashboard', icon: LayoutDashboard, label: 'Dashboard' },
+    { href: '/employee/work', icon: ClipboardList, label: 'Work' },
+    { href: '/employee/team', icon: Users2, label: 'Team' },
+    { href: '/employee/team-chat', icon: MessageSquare, label: 'Chat' },
+    { href: '/employee/notifications', icon: Bell, label: 'Alerts' },
+    { href: '/employee/profile', icon: Clock, label: 'Profile' },
   ];
 
   const adminLinks = [
     { href: '/admin', icon: LayoutDashboard, label: 'Command' },
+    { href: '/employee/team-chat', icon: MessageSquare, label: 'Chat' },
+    { href: '/admin/integrations', icon: GitBranch, label: 'Integrate' },
     { href: '/admin/employees', icon: ClipboardList, label: 'Staff' },
     { href: '/admin/assignments', icon: Clock, label: 'Queue' },
     { href: '/admin/settings', icon: Bell, label: 'Safety' },
@@ -35,7 +39,7 @@ export function MobileNav() {
     <div className="md:hidden fixed bottom-0 left-0 right-0 border-t bg-background flex items-center justify-around h-16 pb-safe z-50">
       {links.map((link) => {
         const Icon = link.icon;
-        const isActive = pathname === link.href || pathname.startsWith(`${link.href}/`);
+        const isActive = pathname ? (pathname === link.href || pathname.startsWith(`${link.href}/`)) : false;
         return (
           <Link
             key={link.href}

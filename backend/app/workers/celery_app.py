@@ -5,6 +5,7 @@ celery_app = Celery(
     "incidentflow_workers",
     broker=settings.REDIS_URL,
     backend=settings.REDIS_URL,
+    include=["app.workers.tasks"],
 )
 
 celery_app.conf.update(

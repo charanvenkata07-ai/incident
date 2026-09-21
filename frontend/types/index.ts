@@ -4,6 +4,10 @@ export interface User {
   full_name: string
   role: 'EMPLOYEE' | 'SUPERVISOR' | 'ADMIN'
   is_active: boolean
+  avatar_url?: string | null
+  phone?: string | null
+  bio?: string | null
+  timezone?: string | null
 }
 
 export interface Employee {
@@ -84,6 +88,8 @@ export interface IncidentBrief {
   short_description: string
   priority: string
   state: string
+  assignment_group?: string | null
+  work_instructions?: string | null
   assigned_employee_name: string | null
   assignment_status: string | null
   assigned_at: string | null
@@ -123,6 +129,13 @@ export interface ActivityEvent {
   reason: string | null
 }
 
+export interface NotificationAction {
+  label: string
+  action: string
+  url: string
+  variant?: 'default' | 'outline' | 'secondary'
+}
+
 export interface Notification {
   id: string
   type: string
@@ -130,9 +143,22 @@ export interface Notification {
   message: string
   incident_id: string | null
   incident_number?: string
+  priority?: string | null
+  conversation_id?: string | null
+  message_id?: string | null
+  assignment_id?: string | null
+  team_id?: string | null
+  sender_id?: string | null
+  sender_name?: string | null
+  action_url?: string | null
+  action_type?: string | null
+  actions?: NotificationAction[]
+  extra_data?: Record<string, unknown> | null
   is_read: boolean
+  read_at?: string | null
   created_at: string
 }
+
 
 export interface DashboardStats {
   active_incidents: number

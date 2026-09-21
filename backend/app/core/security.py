@@ -10,7 +10,9 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.database import get_db
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+import uuid
+import bcrypt
+
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
 
 class Role(str, Enum):
@@ -20,10 +22,14 @@ class Role(str, Enum):
     SYSTEM = "SYSTEM"
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    try:
+        return bcrypt.checkpw(plain_password.encode("utf-8"), hashed_password.encode("utf-8"))
+    except Exception:
+        return False
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    salt = bcrypt.gensalt()
+    return bcrypt.hashpw(password.encode("utf-8"), salt).decode("utf-8")
 
 # Alias for consistency across imports
 hash_password = get_password_hash
@@ -64,7 +70,12 @@ async def get_current_user(token: Annotated[str, Depends(oauth2_scheme)], db: As
     except JWTError:
         raise credentials_exception
     
-    stmt = select(User).where(User.id == user_id)
+    try:
+        user_uuid = uuid.UUID(user_id)
+    except (ValueError, AttributeError):
+        raise credentials_exception
+    
+    stmt = select(User).where(User.id == user_uuid)
     result = await db.execute(stmt)
     user = result.scalar_one_or_none()
     
@@ -76,7 +87,12 @@ def require_role(*roles: Role):
     """Dependency factory that checks if user has one of the required roles."""
     async def role_checker(current_user = Depends(get_current_user)):
         user_role = current_user.role
-        allowed = [r.value if isinstance(r, Role) else r for r in roles]
+        allowed = []
+        for r in roles:
+            if isinstance(r, (list, tuple, set)):
+                allowed.extend([x.value if isinstance(x, Role) else x for x in r])
+            else:
+                allowed.append(r.value if isinstance(r, Role) else r)
         if user_role not in allowed:
             raise HTTPException(status_code=403, detail="Not enough permissions")
         return current_user

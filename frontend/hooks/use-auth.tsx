@@ -8,8 +8,13 @@ import { useRouter, usePathname } from 'next/navigation';
 interface AuthContextType {
   user: User | null;
   token: string | null;
-  login: (email: string, password: string) => Promise<void>;
+  login: (
+    credentialsOrEmail: string | { email?: string; employee_id?: string; password: string; team_id?: string },
+    optionalPassword?: string,
+    optionalTeamId?: string
+  ) => Promise<void>;
   logout: () => void;
+  refreshUser: () => Promise<void>;
   isLoading: boolean;
   isAuthenticated: boolean;
 }
@@ -49,15 +54,31 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   }, [isLoading, user, pathname, router]);
 
-  const login = async (email: string, password: string) => {
-    const response = await apiClient.post<{ access_token: string }>('/api/auth/login', { email, password });
+  const login = async (
+    credentialsOrEmail: string | { email?: string; employee_id?: string; password: string; team_id?: string },
+    optionalPassword?: string,
+    optionalTeamId?: string
+  ) => {
+    let payload: any = {};
+    if (typeof credentialsOrEmail === 'string') {
+      payload = { email: credentialsOrEmail, password: optionalPassword };
+      if (optionalTeamId) payload.team_id = optionalTeamId;
+    } else {
+      payload = credentialsOrEmail;
+    }
+
+    const response = await apiClient.post<{ access_token: string }>('/api/auth/login', payload);
     const newToken = response.access_token;
     localStorage.setItem('auth_token', newToken);
     setToken(newToken);
     apiClient.setToken(newToken);
     const userData = await apiClient.get<User>('/api/auth/me');
     setUser(userData);
-    router.push('/dashboard');
+    if (userData.role === 'ADMIN') {
+      router.push('/admin');
+    } else {
+      router.push('/dashboard');
+    }
   };
 
   const logout = () => {
@@ -68,8 +89,15 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     router.push('/login');
   };
 
+  const refreshUser = async () => {
+    try {
+      const userData = await apiClient.get<User>('/api/auth/me');
+      setUser(userData);
+    } catch {}
+  };
+
   return (
-    <AuthContext.Provider value={{ user, token, login, logout, isLoading, isAuthenticated: !!user }}>
+    <AuthContext.Provider value={{ user, token, login, logout, refreshUser, isLoading, isAuthenticated: !!user }}>
       {children}
     </AuthContext.Provider>
   );

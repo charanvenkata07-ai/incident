@@ -12,6 +12,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
 import { UserPlus, Search, ShieldCheck, Mail, RefreshCw, Smartphone } from 'lucide-react';
+import { usePageSearch } from '@/hooks/use-page-search';
+import { HighlightMatch } from '@/components/search/highlight-match';
 
 export default function AdminEmployeesPage() {
   const { data: employees, isLoading, refetch } = useAdminEmployees();
@@ -68,11 +70,19 @@ export default function AdminEmployeesPage() {
   const filtered = React.useMemo(() => {
     if (!Array.isArray(employees)) return [];
     return employees.filter(e =>
-      e.full_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      e.email.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      (e.team_name && e.team_name.toLowerCase().includes(searchTerm.toLowerCase()))
+      (e?.full_name && e.full_name.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (e?.email && e.email.toLowerCase().includes(searchTerm.toLowerCase())) ||
+      (e?.team_name && e.team_name.toLowerCase().includes(searchTerm.toLowerCase()))
     );
   }, [employees, searchTerm]);
+
+  const { searchQuery, setSearchQuery } = usePageSearch({
+    pageName: 'Employees',
+    placeholder: 'Filter employees on this page...',
+    itemCount: Array.isArray(employees) ? employees.length : 0,
+    filteredCount: filtered.length,
+    onSearch: (q) => setSearchTerm(q),
+  });
 
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-12">
@@ -127,7 +137,7 @@ export default function AdminEmployeesPage() {
                 <div className="flex items-center justify-between text-xs pt-2 border-t">
                   <div>
                     <span className="text-muted-foreground">Team: </span>
-                    <span className="font-medium">{emp.team_name || 'Unassigned'}</span>
+                    <span className="font-medium">{emp.team_name || 'Assignment Pending'}</span>
                   </div>
                   <div>
                     <span className="text-muted-foreground">Incidents: </span>
@@ -162,10 +172,16 @@ export default function AdminEmployeesPage() {
                 {filtered.map((emp) => (
                   <TableRow key={emp.id} className="hover:bg-muted/30">
                     <TableCell>
-                      <div className="font-medium text-sm">{emp.full_name}</div>
-                      <div className="text-xs text-muted-foreground">{emp.email}</div>
+                      <div className="font-medium text-sm">
+                        <HighlightMatch text={emp.full_name} query={searchTerm} />
+                      </div>
+                      <div className="text-xs text-muted-foreground">
+                        <HighlightMatch text={emp.email} query={searchTerm} />
+                      </div>
                     </TableCell>
-                    <TableCell className="text-sm font-medium">{emp.team_name || '-'}</TableCell>
+                    <TableCell className="text-sm font-medium">
+                      <HighlightMatch text={emp.team_name || '-'} query={searchTerm} />
+                    </TableCell>
                     <TableCell>
                       <StatusBadge status={emp.availability_status} type="availability" />
                     </TableCell>

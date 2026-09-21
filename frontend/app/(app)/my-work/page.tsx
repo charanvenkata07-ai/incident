@@ -8,20 +8,45 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { EmptyState } from '@/components/empty-state';
 import { ClipboardList } from 'lucide-react';
 
+import { usePageSearch } from '@/hooks/use-page-search';
+
 export default function MyWorkPage() {
   const [filter, setFilter] = React.useState('ACTIVE');
+  const [localSearch, setLocalSearch] = React.useState('');
   const { data: incidents, isLoading } = useMyWork();
 
   const filteredIncidents = React.useMemo(() => {
-    if (!incidents) return [];
+    if (!Array.isArray(incidents)) return [];
     if (filter === 'ACTIVE') {
-      return incidents.filter(i => ['NEW', 'ASSIGNED', 'ACKNOWLEDGED', 'IN_PROGRESS'].includes(i.state));
+      return incidents.filter(i => i && ['NEW', 'ASSIGNED', 'ACKNOWLEDGED', 'IN_PROGRESS'].includes(i.state));
     }
     if (filter === 'COMPLETED') {
-      return incidents.filter(i => ['COMPLETED', 'RESOLVED', 'CLOSED'].includes(i.state));
+      return incidents.filter(i => i && ['COMPLETED', 'RESOLVED', 'CLOSED'].includes(i.state));
     }
     return incidents;
   }, [incidents, filter]);
+
+  const searchedIncidents = React.useMemo(() => {
+    const q = localSearch.trim().toLowerCase();
+    if (!q) return filteredIncidents;
+    return filteredIncidents.filter((inc) => {
+      return (
+        inc.incident_number?.toLowerCase().includes(q) ||
+        inc.short_description?.toLowerCase().includes(q) ||
+        inc.priority?.toLowerCase().includes(q) ||
+        inc.assignment_group?.toLowerCase().includes(q) ||
+        inc.state?.toLowerCase().includes(q)
+      );
+    });
+  }, [filteredIncidents, localSearch]);
+
+  const { searchQuery, setSearchQuery } = usePageSearch({
+    pageName: 'My Work',
+    placeholder: 'Filter my work on this page...',
+    itemCount: filteredIncidents.length,
+    filteredCount: searchedIncidents.length,
+    onSearch: (q) => setLocalSearch(q),
+  });
 
   return (
     <div className="space-y-6 max-w-5xl mx-auto">
@@ -39,15 +64,15 @@ export default function MyWorkPage() {
         <div className="mt-6">
           {isLoading ? (
             <IncidentListSkeleton />
-          ) : filteredIncidents.length === 0 ? (
+          ) : searchedIncidents.length === 0 ? (
             <EmptyState
               icon={ClipboardList}
-              title="No incidents found"
-              description={`You have no ${filter.toLowerCase()} incidents.`}
+              title={localSearch ? "No matching work items" : "No incidents found"}
+              description={localSearch ? `No work items match "${localSearch}" on this page.` : `You have no ${filter.toLowerCase()} incidents.`}
             />
           ) : (
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
-              {filteredIncidents.map(incident => (
+              {searchedIncidents.map(incident => (
                 <IncidentCard key={incident.id} incident={incident} />
               ))}
             </div>

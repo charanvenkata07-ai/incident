@@ -44,3 +44,43 @@ logs/
 # Database
 *.db
 *.sqlite3
+
+# Secrets / environment
+.env
+.env.*
+!.env.example
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.venv/
+venv/
+*.egg-info/
+
+# Node / Next.js
+node_modules/
+.next/
+out/
+*.tsbuildinfo
+
+# Local databases / backups
+*.db
+*.sqlite
+*.sqlite3
+*.dump
+*.rdb
+*.sql
+
+# Runtime uploads
+backend/uploads/
+
+# Logs
+*.log
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/

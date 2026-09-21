@@ -12,11 +12,11 @@ class ServiceNowIncidentPayload(BaseModel):
     urgency: Optional[str] = None
     category: Optional[str] = None
     subcategory: Optional[str] = None
-    assignment_group: Optional[dict] = None
-    assigned_to: Optional[dict] = None
-    caller_id: Optional[dict] = None
-    location: Optional[dict] = None
-    cmdb_ci: Optional[dict] = None
+    assignment_group: Optional[Any] = None
+    assigned_to: Optional[Any] = None
+    caller_id: Optional[Any] = None
+    location: Optional[Any] = None
+    cmdb_ci: Optional[Any] = None
     state: Optional[str] = None
     opened_at: Optional[datetime] = None
     u_work_notes: Optional[str] = None

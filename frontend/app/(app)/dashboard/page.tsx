@@ -16,16 +16,26 @@ export default function DashboardPage() {
   const { user } = useAuth();
   const { data: myWork, isLoading: workLoading } = useMyWork();
   const { data: myShift, isLoading: shiftLoading } = useMyShift();
+  const [mounted, setMounted] = React.useState(false);
+
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
 
   if (workLoading || shiftLoading) return <DashboardSkeleton />;
 
-  const activeIncidents = myWork?.filter(i => ['NEW', 'ASSIGNED', 'ACKNOWLEDGED', 'IN_PROGRESS'].includes(i.state)) || [];
+  const activeIncidents = Array.isArray(myWork) ? myWork.filter(i => i && ['NEW', 'ASSIGNED', 'ACKNOWLEDGED', 'IN_PROGRESS'].includes(i.state)) : [];
+  const firstName = user?.full_name?.split(' ')[0] || 'User';
 
   return (
     <div className="space-y-8 max-w-5xl mx-auto">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">{getGreeting()}, {user?.full_name?.split(' ')[0]}</h1>
-        <p className="text-muted-foreground">{formatDate(new Date().toISOString())}</p>
+        <h1 className="text-2xl font-bold tracking-tight">
+          {mounted ? getGreeting() : 'Welcome'}, {firstName}
+        </h1>
+        <p className="text-muted-foreground">
+          {mounted ? formatDate(new Date().toISOString()) : 'Today'}
+        </p>
       </div>
 
       <Card>
@@ -35,13 +45,13 @@ export default function DashboardPage() {
               <Clock className="h-6 w-6" />
             </div>
             <div>
-              <h3 className="font-semibold">{myShift ? 'On Shift' : 'Off Shift'}</h3>
+              <h3 className="font-semibold">{myShift?.shift ? 'On Shift' : 'Off Shift'}</h3>
               <p className="text-sm text-muted-foreground">
-                {myShift ? `${myShift.shift.start_time} - ${myShift.shift.end_time} ${myShift.shift.timezone}` : 'No active shift'}
+                {myShift?.shift ? `${myShift.shift.start_time} - ${myShift.shift.end_time} ${myShift.shift.timezone}` : 'No active shift'}
               </p>
             </div>
           </div>
-          {myShift && <StatusBadge status={myShift.employee.availability_status} type="availability" />}
+          {myShift?.employee?.availability_status && <StatusBadge status={myShift.employee.availability_status} type="availability" />}
         </CardContent>
       </Card>
 

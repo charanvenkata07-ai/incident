@@ -1,6 +1,10 @@
 from app.workers.celery_app import celery_app
 
 @celery_app.task
+def ping_worker():
+    return "WORKER_HEARTBEAT_ACK"
+
+@celery_app.task
 def sync_assignment_to_servicenow(incident_id, employee_id):
     pass
 

@@ -18,9 +18,9 @@ branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 
 def upgrade() -> None:
-    # We use a shortcut to create all tables from metadata to avoid writing a massive migration file
-    # This works nicely with run_sync
-    op.run_sync(lambda conn: Base.metadata.create_all(conn))
+    bind = op.get_bind()
+    Base.metadata.create_all(bind)
 
 def downgrade() -> None:
-    op.run_sync(lambda conn: Base.metadata.drop_all(conn))
+    bind = op.get_bind()
+    Base.metadata.drop_all(bind)

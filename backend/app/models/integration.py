@@ -1,6 +1,7 @@
 import uuid
+from typing import Optional
 from datetime import datetime
-from sqlalchemy import String, Text, Integer, DateTime, ForeignKey, Index, func
+from sqlalchemy import String, Text, Integer, DateTime, ForeignKey, Index, func, text
 from sqlalchemy.dialects.postgresql import UUID as PGUUID, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
@@ -12,11 +13,22 @@ class IntegrationEvent(Base):
     event_type: Mapped[str] = mapped_column(String(50), nullable=False)
     source: Mapped[str] = mapped_column(String(50), nullable=False)
     payload: Mapped[dict] = mapped_column(JSONB, nullable=False)
+    idempotency_key: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
     incident_number: Mapped[str] = mapped_column(String(20), nullable=True, index=True)
     status: Mapped[str] = mapped_column(String(20), default="RECEIVED")
     error_message: Mapped[str] = mapped_column(Text, nullable=True)
     processed_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+    __table_args__ = (
+        Index(
+            'uq_integration_event_idempotency',
+            'idempotency_key',
+            unique=True,
+            sqlite_where=text("idempotency_key IS NOT NULL"),
+            postgresql_where=text("idempotency_key IS NOT NULL")
+        ),
+    )
 
 class SyncFailure(Base):
     __tablename__ = "sync_failures"

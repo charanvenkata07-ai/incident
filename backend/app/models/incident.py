@@ -1,6 +1,6 @@
 import uuid
 from datetime import datetime
-from sqlalchemy import String, Text, DateTime, ForeignKey, UniqueConstraint, Index, func
+from sqlalchemy import String, Text, DateTime, Integer, ForeignKey, UniqueConstraint, Index, func
 from sqlalchemy.dialects.postgresql import UUID as PGUUID
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.core.database import Base
@@ -23,7 +23,8 @@ class Incident(Base):
     caller: Mapped[str] = mapped_column(String(200), nullable=True)
     location: Mapped[str] = mapped_column(String(200), nullable=True)
     configuration_item: Mapped[str] = mapped_column(String(200), nullable=True)
-    state: Mapped[str] = mapped_column(String(20), default="NEW")
+    state: Mapped[str] = mapped_column(String(50), default="NEW")
+    current_cycle: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
     work_notes: Mapped[str] = mapped_column(Text, nullable=True)
     additional_comments: Mapped[str] = mapped_column(Text, nullable=True)
     work_instructions: Mapped[str] = mapped_column(Text, nullable=True)

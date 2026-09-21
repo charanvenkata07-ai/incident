@@ -6,7 +6,12 @@ import type { Notification } from '@/types';
 export function useNotifications() {
   return useQuery({
     queryKey: ['notifications'],
-    queryFn: () => apiClient.get<Notification[]>('/api/notifications'),
+    queryFn: async () => {
+      const res = await apiClient.get<any>('/api/notifications');
+      if (Array.isArray(res)) return res as Notification[];
+      if (res && Array.isArray(res.notifications)) return res.notifications as Notification[];
+      return [] as Notification[];
+    },
   });
 }
 

@@ -5,10 +5,12 @@ import { useAdminSettings } from '@/hooks/use-admin';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from '@/components/ui/dialog';
 import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
-import { ShieldCheck, AlertTriangle, Play, Pause, RefreshCw } from 'lucide-react';
+import { ShieldCheck, AlertTriangle, RefreshCw } from 'lucide-react';
+import { ContextualHelp } from '@/components/help/contextual-help';
 
 interface SettingsData {
   auto_assignment_enabled: boolean;
@@ -20,13 +22,22 @@ interface SettingsData {
   environment: string;
 }
 
+const REQUIRED_PHRASE = 'ENABLE LIVE ASSIGNMENT';
+
 export default function AdminSettingsPage() {
-  const { data: settings, isLoading, refetch } = useAdminSettings() as { data: SettingsData | undefined; isLoading: boolean; refetch: () => void };
+  const { data: settings, isLoading, refetch } = useAdminSettings() as {
+    data: SettingsData | undefined;
+    isLoading: boolean;
+    refetch: () => void;
+  };
   const [isConfirmLiveOpen, setIsConfirmLiveOpen] = React.useState(false);
+  const [confirmationPhrase, setConfirmationPhrase] = React.useState('');
   const [isUpdating, setIsUpdating] = React.useState(false);
 
   const changeMode = async (targetMode: string, confirmed = false) => {
+    // LIVE requires explicit confirmation dialog with typed phrase
     if (targetMode === 'LIVE' && !confirmed) {
+      setConfirmationPhrase('');
       setIsConfirmLiveOpen(true);
       return;
     }
@@ -34,10 +45,12 @@ export default function AdminSettingsPage() {
     try {
       await apiClient.post('/api/admin/automation/mode', {
         mode: targetMode,
-        confirmed: true
+        confirmed: true,
+        confirmation_phrase: targetMode === 'LIVE' ? confirmationPhrase : '',
       });
       toast.success(`Automation mode switched to ${targetMode}`);
       setIsConfirmLiveOpen(false);
+      setConfirmationPhrase('');
       refetch();
     } catch (err: any) {
       toast.error(err?.message || 'Failed to update automation mode');
@@ -61,8 +74,8 @@ export default function AdminSettingsPage() {
     <div className="space-y-6 max-w-4xl mx-auto pb-12">
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b pb-4">
         <div>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">System Controls & Staging Safety</h1>
-          <p className="text-sm text-muted-foreground">Manage assignment mode, go-live safety checks & strategy configuration</p>
+          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight">System Controls &amp; Staging Safety</h1>
+          <p className="text-sm text-muted-foreground">Manage assignment mode, go-live safety checks &amp; strategy configuration</p>
         </div>
         <Button variant="outline" size="sm" onClick={() => refetch()} className="h-9 text-xs">
           <RefreshCw className="mr-1.5 h-3.5 w-3.5" /> Refresh
@@ -72,10 +85,13 @@ export default function AdminSettingsPage() {
       {/* Mode Control Card */}
       <Card className="shadow-sm">
         <CardHeader className="p-4 sm:p-6 border-b">
-          <CardTitle className="text-base sm:text-lg font-semibold flex items-center gap-2">
-            <ShieldCheck className="h-5 w-5 text-blue-500" />
-            Automation Lifecycle Mode
-          </CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base sm:text-lg font-semibold flex items-center gap-2">
+              <ShieldCheck className="h-5 w-5 text-blue-500" />
+              Automation Lifecycle Mode
+            </CardTitle>
+            <ContextualHelp featureKey="shadow_mode" label="Mode rules" iconOnly={false} />
+          </div>
           <p className="text-xs text-muted-foreground mt-0.5">
             Safely test incident routing without risking customer-facing changes in ServiceNow
           </p>
@@ -84,12 +100,12 @@ export default function AdminSettingsPage() {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {/* DRY RUN */}
             <div
-              onClick={() => changeMode('DRY_RUN')}
+              onClick={() => !isUpdating && changeMode('DRY_RUN')}
               className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
                 currentMode === 'DRY_RUN'
                   ? 'border-blue-500 bg-blue-50/50 dark:bg-blue-950/20'
                   : 'border-border hover:bg-muted/40'
-              }`}
+              } ${isUpdating ? 'opacity-50 pointer-events-none' : ''}`}
             >
               <div className="font-semibold text-sm flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-blue-500" />
@@ -102,12 +118,12 @@ export default function AdminSettingsPage() {
 
             {/* SHADOW */}
             <div
-              onClick={() => changeMode('SHADOW')}
+              onClick={() => !isUpdating && changeMode('SHADOW')}
               className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
                 currentMode === 'SHADOW'
                   ? 'border-amber-500 bg-amber-50/50 dark:bg-amber-950/20'
                   : 'border-border hover:bg-muted/40'
-              }`}
+              } ${isUpdating ? 'opacity-50 pointer-events-none' : ''}`}
             >
               <div className="font-semibold text-sm flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
@@ -120,19 +136,19 @@ export default function AdminSettingsPage() {
 
             {/* LIVE */}
             <div
-              onClick={() => changeMode('LIVE')}
+              onClick={() => !isUpdating && changeMode('LIVE')}
               className={`p-4 rounded-lg border-2 cursor-pointer transition-all ${
                 currentMode === 'LIVE'
                   ? 'border-emerald-500 bg-emerald-50/50 dark:bg-emerald-950/20'
                   : 'border-border hover:bg-muted/40'
-              }`}
+              } ${isUpdating ? 'opacity-50 pointer-events-none' : ''}`}
             >
               <div className="font-semibold text-sm flex items-center gap-2">
                 <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
                 LIVE
               </div>
               <p className="text-xs text-muted-foreground mt-1">
-                Full autonomous dispatch & bidirectional ServiceNow sync.
+                Full autonomous dispatch &amp; bidirectional ServiceNow sync.
               </p>
             </div>
           </div>
@@ -144,7 +160,7 @@ export default function AdminSettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Rules & Strategy */}
+      {/* Engine Configuration */}
       <Card className="shadow-sm">
         <CardHeader className="p-4 sm:p-6 border-b">
           <CardTitle className="text-base sm:text-lg font-semibold">Engine Configuration</CardTitle>
@@ -179,7 +195,13 @@ export default function AdminSettingsPage() {
       </Card>
 
       {/* Go-Live Safety Confirmation Dialog */}
-      <Dialog open={isConfirmLiveOpen} onOpenChange={setIsConfirmLiveOpen}>
+      <Dialog
+        open={isConfirmLiveOpen}
+        onOpenChange={(open) => {
+          setIsConfirmLiveOpen(open);
+          if (!open) setConfirmationPhrase('');
+        }}
+      >
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-rose-600">
@@ -187,7 +209,7 @@ export default function AdminSettingsPage() {
               Confirm Switch to LIVE Mode
             </DialogTitle>
           </DialogHeader>
-          <div className="space-y-3 pt-2 text-sm">
+          <div className="space-y-4 pt-2 text-sm">
             <p className="text-muted-foreground">
               You are about to enable <strong>LIVE autonomous routing</strong>.
             </p>
@@ -196,18 +218,41 @@ export default function AdminSettingsPage() {
               <li>ServiceNow assignments will be updated automatically via REST.</li>
               <li>Engineers will receive instant notifications upon dispatch.</li>
             </ul>
-            <p className="text-xs font-semibold text-foreground">
-              Please verify all staging health tests and shadow comparisons have passed before proceeding.
-            </p>
+            <div className="space-y-2">
+              <p className="text-xs font-semibold text-foreground">
+                Type exactly to confirm:{' '}
+                <code className="bg-muted px-1.5 py-0.5 rounded text-rose-600 font-mono">
+                  {REQUIRED_PHRASE}
+                </code>
+              </p>
+              <Input
+                value={confirmationPhrase}
+                onChange={(e) => setConfirmationPhrase(e.target.value)}
+                placeholder={REQUIRED_PHRASE}
+                className="font-mono text-xs"
+                autoFocus
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && confirmationPhrase === REQUIRED_PHRASE) {
+                    changeMode('LIVE', true);
+                  }
+                }}
+              />
+              {confirmationPhrase.length > 0 && confirmationPhrase !== REQUIRED_PHRASE && (
+                <p className="text-xs text-rose-500">Phrase does not match. Check capitalisation and spacing.</p>
+              )}
+            </div>
           </div>
           <DialogFooter className="pt-2">
-            <Button variant="outline" onClick={() => setIsConfirmLiveOpen(false)}>
+            <Button
+              variant="outline"
+              onClick={() => { setIsConfirmLiveOpen(false); setConfirmationPhrase(''); }}
+            >
               Cancel
             </Button>
             <Button
               className="bg-rose-600 hover:bg-rose-700 text-white"
               onClick={() => changeMode('LIVE', true)}
-              disabled={isUpdating}
+              disabled={isUpdating || confirmationPhrase !== REQUIRED_PHRASE}
             >
               {isUpdating ? 'Activating...' : 'Yes, Activate LIVE'}
             </Button>

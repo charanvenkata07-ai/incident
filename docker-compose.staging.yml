@@ -1,0 +1,134 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: incidentflow-staging-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-incidentflow}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-incidentflow_staging_dev}
+      POSTGRES_DB: ${POSTGRES_DB:-incidentflow}
+    ports:
+      - "5432:5432"
+    volumes:
+      - staging_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U incidentflow -d incidentflow"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - incidentflow-staging-net
+
+  redis:
+    image: redis:7-alpine
+    container_name: incidentflow-staging-redis
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - staging_redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    networks:
+      - incidentflow-staging-net
+
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: incidentflow-staging-backend
+    restart: unless-stopped
+    stop_grace_period: 30s
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: STAGING
+      AUTOMATION_MODE: SHADOW
+      LIVE: "OFF"
+      EMAIL_PROVIDER: MOCK
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-incidentflow}:${POSTGRES_PASSWORD:-incidentflow_staging_dev}@postgres:5432/${POSTGRES_DB:-incidentflow}
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: ${JWT_SECRET:-staging-jwt-secret-do-not-use-in-prod}
+      JWT_ALGORITHM: HS256
+      JWT_EXPIRATION_MINUTES: 480
+      APP_BASE_URL: https://staging.incidentflow.internal
+      CORS_ORIGINS: '["https://staging.incidentflow.internal", "http://localhost:3000"]'
+      SERVICENOW_URL: ${SERVICENOW_URL:-https://dev-staging.service-now.com}
+      SERVICENOW_USERNAME: ${SERVICENOW_USERNAME:-incidentflow_svc}
+      SERVICENOW_PASSWORD: ${SERVICENOW_PASSWORD:-staging_mock_pass}
+      SERVICENOW_WEBHOOK_SECRET: ${SERVICENOW_WEBHOOK_SECRET:-staging-secret-mock-token-not-real}
+      SERVICENOW_MOCK: "false"
+      AUTO_ASSIGNMENT_ENABLED: "true"
+      ASSIGNMENT_STRATEGY: "SKILL_PLUS_WORKLOAD"
+      LOG_LEVEL: "INFO"
+    ports:
+      - "8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/ready || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    networks:
+      - incidentflow-staging-net
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: incidentflow-staging-worker
+    restart: unless-stopped
+    stop_grace_period: 30s
+    command: ["celery", "-A", "app.workers.celery_app.celery_app", "worker", "--loglevel=info", "--concurrency=2"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      backend:
+        condition: service_healthy
+    environment:
+      ENVIRONMENT: STAGING
+      AUTOMATION_MODE: SHADOW
+      LIVE: "OFF"
+      EMAIL_PROVIDER: MOCK
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-incidentflow}:${POSTGRES_PASSWORD:-incidentflow_staging_dev}@postgres:5432/${POSTGRES_DB:-incidentflow}
+      REDIS_URL: redis://redis:6379/0
+      SERVICENOW_URL: ${SERVICENOW_URL:-https://dev-staging.service-now.com}
+      SERVICENOW_MOCK: "false"
+      AUTO_ASSIGNMENT_ENABLED: "true"
+      ASSIGNMENT_STRATEGY: "SKILL_PLUS_WORKLOAD"
+    networks:
+      - incidentflow-staging-net
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: incidentflow-staging-frontend
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      NODE_ENV: production
+      NEXT_PUBLIC_API_URL: http://backend:8000
+    depends_on:
+      - backend
+    networks:
+      - incidentflow-staging-net
+
+volumes:
+  staging_pgdata:
+  staging_redisdata:
+
+networks:
+  incidentflow-staging-net:
+    driver: bridge

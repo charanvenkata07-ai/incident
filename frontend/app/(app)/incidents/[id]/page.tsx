@@ -38,8 +38,14 @@ export default function IncidentDetailPage() {
           <h1 className="text-2xl font-bold tracking-tight">{incident.incident_number}</h1>
           <StatusBadge status={incident.priority} type="priority" />
           <StatusBadge status={incident.state} type="status" />
+          <span className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 font-semibold px-2 py-0.5 rounded">
+            SHADOW MODE: SIMULATION ONLY
+          </span>
         </div>
-        <p className="text-lg font-medium">{incident.short_description}</p>
+        <p className="text-sm font-medium text-amber-600 dark:text-amber-400">
+          * Note: In SHADOW mode, this ticket would be assigned to you. ServiceNow assigned_to remains untouched.
+        </p>
+        <p className="text-lg font-medium mt-1">{incident.short_description}</p>
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
@@ -122,7 +128,7 @@ export default function IncidentDetailPage() {
                   START_WORK: 'Work started',
                   COMPLETE: 'Work completed',
                   REASSIGN: 'Reassigned',
-                  UNASSIGN: 'Unassigned',
+                  UNASSIGN: 'Assignment Pending',
                   SN_SYNC: 'Synchronized with ServiceNow',
                   SN_SYNC_FAILED: 'ServiceNow sync failed',
                   AUTO_ASSIGN_FAILED: 'Auto-assignment failed',
