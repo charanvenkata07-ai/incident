@@ -31,7 +31,7 @@ import uuid
 import pytest
 import asyncio
 from datetime import datetime, timezone
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from httpx import AsyncClient, ASGITransport
 
 from app.main import app
@@ -46,6 +46,44 @@ from app.models.team_rotation import TeamRotation
 from app.models.notification import Notification
 from app.services.org_validation import validate_organization_structure, OrgValidationError
 from app.services.rotation_service import TeamRotationService
+
+import pytest_asyncio
+
+CANONICAL_TEAMS = [
+    "MDM L3", "Database L2", "Network L2", "Linux L2", "Windows L2",
+    "Cloud Operations L2", "Application Support L2", "Security Operations L2",
+    "Storage & Backup L2", "Monitoring & Batch L2", "DevOps & SRE L2",
+    "Identity & Access L2", "Messaging & Collaboration L2", "API Gateway L2",
+    "Data Platform L2"
+]
+
+
+@pytest_asyncio.fixture(autouse=True)
+async def isolate_15_canonical_teams():
+    async with async_session_maker() as session:
+        await session.execute(
+            update(Team).where(~Team.name.in_(CANONICAL_TEAMS)).values(is_active=False)
+        )
+        await session.execute(
+            update(Team).where(Team.name.in_(CANONICAL_TEAMS)).values(is_active=True)
+        )
+        team_ids = (await session.execute(
+            select(Team.id).where(Team.name.in_(CANONICAL_TEAMS))
+        )).scalars().all()
+        await session.execute(
+            update(Employee)
+            .where(Employee.team_id.in_(team_ids))
+            .values(is_present=True, availability_status="AVAILABLE")
+        )
+        db_team = (await session.execute(select(Team).where(Team.name == "Database L2"))).scalar_one_or_none()
+        if db_team:
+            db001 = (await session.execute(
+                select(Employee).where(Employee.team_id == db_team.id, Employee.employee_code == "DB001")
+            )).scalar_one_or_none()
+            if db001 and not db001.is_group_leader:
+                db001.is_group_leader = True
+        await session.commit()
+    yield
 
 
 @pytest.mark.asyncio

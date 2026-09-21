@@ -50,13 +50,17 @@ async def test_leader_only_admin_chat_and_transfer_lifecycle():
 
         assert target_team is not None, "Need a team with >= 2 active employees"
 
-        emp_a, user_a = team_members[0]
-        emp_b, user_b = team_members[1]
-
-        # Designate emp_a as group leader initially, emp_b as non-leader
-        emp_a.is_group_leader = True
-        emp_b.is_group_leader = False
-        await session.commit()
+        leader = next((m for m in team_members if m[0].is_group_leader), None)
+        non_leader = next((m for m in team_members if not m[0].is_group_leader), None)
+        if leader and non_leader:
+            emp_a, user_a = leader
+            emp_b, user_b = non_leader
+        else:
+            emp_a, user_a = team_members[0]
+            emp_b, user_b = team_members[1]
+            emp_a.is_group_leader = True
+            emp_b.is_group_leader = False
+            await session.commit()
 
         team_id = target_team.id
         user_a_id = user_a.id
@@ -172,7 +176,7 @@ async def test_teammate_only_direct_chat_and_cross_team_restriction():
         team_1 = teams[0]
         team_2 = teams[1]
 
-        # Find 2 members of team 1
+        # Find 2 non-leader members of team 1
         t1_members = (await session.execute(
             select(Employee, User).join(User, Employee.user_id == User.id).where(
                 Employee.team_id == team_1.id,
@@ -180,11 +184,12 @@ async def test_teammate_only_direct_chat_and_cross_team_restriction():
                 User.role == "EMPLOYEE"
             )
         )).all()
-        assert len(t1_members) >= 2
-        emp_1a, user_1a = t1_members[0]
-        emp_1b, user_1b = t1_members[1]
+        non_leaders_1 = [m for m in t1_members if not m[0].is_group_leader]
+        assert len(non_leaders_1) >= 2
+        emp_1a, user_1a = non_leaders_1[0]
+        emp_1b, user_1b = non_leaders_1[1]
 
-        # Find 1 member of team 2
+        # Find 1 non-leader member of team 2
         t2_members = (await session.execute(
             select(Employee, User).join(User, Employee.user_id == User.id).where(
                 Employee.team_id == team_2.id,
@@ -192,14 +197,9 @@ async def test_teammate_only_direct_chat_and_cross_team_restriction():
                 User.role == "EMPLOYEE"
             )
         )).all()
-        assert len(t2_members) >= 1
-        emp_2a, user_2a = t2_members[0]
-
-        # Ensure non-leaders
-        emp_1a.is_group_leader = False
-        emp_1b.is_group_leader = False
-        emp_2a.is_group_leader = False
-        await session.commit()
+        non_leaders_2 = [m for m in t2_members if not m[0].is_group_leader]
+        assert len(non_leaders_2) >= 1
+        emp_2a, user_2a = non_leaders_2[0]
 
         user_1a_id = user_1a.id
         user_1b_id = user_1b.id

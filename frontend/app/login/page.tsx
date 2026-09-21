@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { apiClient } from '@/lib/api-client';
-import { Shield, User, Users, ArrowLeft, KeyRound, Check, ChevronRight } from 'lucide-react';
+import { Shield, User, Users, ArrowLeft, KeyRound, Check, ChevronRight, Eye, EyeOff } from 'lucide-react';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Skeleton } from '@/components/ui/skeleton';
 
@@ -40,6 +40,7 @@ export default function LoginPage() {
   // Admin form state
   const [adminEmail, setAdminEmail] = React.useState('');
   const [adminPassword, setAdminPassword] = React.useState('');
+  const [showAdminPassword, setShowAdminPassword] = React.useState(false);
 
   // Employee selection flow state
   const [groups, setGroups] = React.useState<LoginGroup[]>([]);
@@ -244,16 +245,38 @@ export default function LoginPage() {
                 />
               </div>
               <div className="space-y-1.5">
-                <label className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">Password</label>
-                <Input
-                  value={adminPassword}
-                  onChange={(e) => setAdminPassword(e.target.value)}
-                  placeholder="••••••••"
-                  type="password"
-                  required
-                  disabled={isSubmitting}
-                  className="bg-white dark:bg-zinc-900"
-                />
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-semibold text-zinc-800 dark:text-zinc-200">Password</label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAdminEmail('admin@incidentflow.dev');
+                      setAdminPassword('pvcharan12345PV');
+                      setError('');
+                    }}
+                    className="text-[11px] text-blue-600 hover:text-blue-700 dark:text-blue-400 hover:underline font-medium"
+                  >
+                    Use Default Admin
+                  </button>
+                </div>
+                <div className="relative">
+                  <Input
+                    value={adminPassword}
+                    onChange={(e) => setAdminPassword(e.target.value)}
+                    placeholder="••••••••"
+                    type={showAdminPassword ? 'text' : 'password'}
+                    required
+                    disabled={isSubmitting}
+                    className="bg-white dark:bg-zinc-900 pr-10"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowAdminPassword(!showAdminPassword)}
+                    className="absolute right-3 top-1/2 -translate-y-1/2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-200 p-1"
+                  >
+                    {showAdminPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                  </button>
+                </div>
               </div>
               <Button type="submit" className="w-full bg-zinc-900 text-white hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900" disabled={isSubmitting}>
                 {isSubmitting ? 'Signing in...' : 'Sign In as Admin'}
