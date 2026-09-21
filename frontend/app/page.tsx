@@ -1,10 +1,14 @@
-import { redirect } from 'next/navigation';
+'use client';
 
-/**
- * Root route — immediately redirect to /login.
- * The AuthProvider in use-auth.tsx handles post-login routing
- * (admin → /admin, employee → /dashboard).
- */
+import { useEffect } from 'react';
+import { useRouter } from 'next/navigation';
+
 export default function RootPage() {
-  redirect('/login');
+  const router = useRouter();
+
+  useEffect(() => {
+    router.replace('/login');
+  }, [router]);
+
+  return null;
 }
