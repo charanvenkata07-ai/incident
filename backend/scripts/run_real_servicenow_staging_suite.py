@@ -58,7 +58,7 @@ async def run_suite():
 
     async with httpx.AsyncClient(transport=transport, base_url=BASE_URL, timeout=15.0) as client:
         # Admin auth token
-        login_res = await client.post("/api/auth/login", json={"email": "admin@incidentflow.dev", "password": "password123"})
+        login_res = await client.post("/api/auth/login", json={"email": "admin@incidentflow.dev", "password": "pvcharan12345PV"})
         if login_res.status_code != 200:
             login_res = await client.post("/api/auth/login", json={"email": "admin@incidentflow.dev", "password": "admin123"})
         admin_token = login_res.json()["access_token"]

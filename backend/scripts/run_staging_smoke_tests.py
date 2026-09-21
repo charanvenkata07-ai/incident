@@ -39,9 +39,9 @@ async def run_all_checks():
 
         # 3. Authentication
         # Admin Login
-        r = await client.post("/api/auth/login", json={"email": "admin@incidentflow.dev", "password": "password123"})
+        r = await client.post("/api/auth/login", json={"email": "admin@incidentflow.dev", "password": "pvcharan12345PV"})
         if r.status_code != 200:
-            # try admin123
+            # fallback
             r = await client.post("/api/auth/login", json={"email": "admin@incidentflow.dev", "password": "admin123"})
         assert r.status_code == 200, f"Admin login failed: {r.text}"
         admin_token = r.json()["access_token"]
@@ -49,7 +49,7 @@ async def run_all_checks():
         print(f"[CHECK 4] Admin Login: PASS (200)")
 
         # Employee Login
-        r = await client.post("/api/auth/login", json={"email": "ravi@incidentflow.dev", "password": "password123"})
+        r = await client.post("/api/auth/login", json={"email": "ravi@incidentflow.dev", "password": "pvcharan12345"})
         assert r.status_code == 200, f"Employee login failed: {r.text}"
         emp_token = r.json()["access_token"]
         emp_headers = {"Authorization": f"Bearer {emp_token}"}

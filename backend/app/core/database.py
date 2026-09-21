@@ -33,7 +33,16 @@ def compile_jsonb_sqlite(type_, compiler, **kw):
 def compile_pguuid_sqlite(type_, compiler, **kw):
     return "CHAR(36)"
 
-engine = create_async_engine(db_url, echo=settings.DEBUG)
+import sys
+from sqlalchemy.pool import NullPool
+
+engine_kwargs = {"echo": settings.DEBUG}
+if "pytest" in sys.modules or os.environ.get("PYTEST_CURRENT_TEST") or os.environ.get("TESTING"):
+    engine_kwargs["poolclass"] = NullPool
+else:
+    engine_kwargs["pool_pre_ping"] = True
+
+engine = create_async_engine(db_url, **engine_kwargs)
 async_session_maker = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 class Base(DeclarativeBase):

@@ -168,11 +168,11 @@ celery -A app.workers.celery_app worker --loglevel=info
 
 | Email | Password | Role |
 |-------|----------|------|
-| admin@incidentflow.dev | admin123 | Admin |
-| supervisor@incidentflow.dev | super123 | Supervisor |
-| ravi@incidentflow.dev | password123 | Employee |
-| kiran@incidentflow.dev | password123 | Employee |
-| suresh@incidentflow.dev | password123 | Employee |
+| admin@incidentflow.dev | pvcharan12345PV | Admin |
+| supervisor@incidentflow.dev | pvcharan12345PV | Supervisor |
+| ravi@incidentflow.dev | pvcharan12345 | Employee |
+| kiran@incidentflow.dev | pvcharan12345 | Employee |
+| suresh@incidentflow.dev | pvcharan12345 | Employee |
 
 ---
 

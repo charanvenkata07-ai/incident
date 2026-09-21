@@ -67,6 +67,10 @@ async def seed_dev():
                 )
                 session.add(user)
                 await session.flush()
+            else:
+                user.hashed_password = get_password_hash(u["password"])
+                user.role = u["role"]
+                user.full_name = u["full_name"]
             users_map[u["email"]] = user
 
         # 2. Teams

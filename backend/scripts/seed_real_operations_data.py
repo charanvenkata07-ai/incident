@@ -312,9 +312,14 @@ async def seed_real_operations():
                 is_active=True
             )
             session.add(admin)
+        else:
+            admin.role = "ADMIN"
+            admin.is_active = True
+            admin.hashed_password = admin_pwd_hash
 
         sup_res = await session.execute(select(User).where(User.email == "supervisor@incidentflow.dev"))
-        if not sup_res.scalar_one_or_none():
+        sup = sup_res.scalar_one_or_none()
+        if not sup:
             session.add(User(
                 email="supervisor@incidentflow.dev",
                 hashed_password=super_pwd_hash,
@@ -322,6 +327,10 @@ async def seed_real_operations():
                 role="SUPERVISOR",
                 is_active=True
             ))
+        else:
+            sup.role = "SUPERVISOR"
+            sup.is_active = True
+            sup.hashed_password = super_pwd_hash
 
         # ------------------------------------------------------------------
         # 2. Shifts Configuration (Asia/Kolkata, 24/7 Coverage)
