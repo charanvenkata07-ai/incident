@@ -105,18 +105,20 @@ interface AuditData {
   categories_breakdown: Record<string, number>;
 }
 
-interface WhatsNewData {
-  last_audit_date: string;
-  total_features: number;
-  recent_changes: Array<{
-    version: string;
-    date: string;
-    title: string;
-    description: string;
-    category: string;
-    related_article?: string;
-  }>;
+interface WhatsNewItem {
+  version: string;
+  date: string;
+  title: string;
+  description: string;
+  category?: string;
+  related_article?: string;
 }
+
+type WhatsNewData = WhatsNewItem[] | {
+  last_audit_date?: string;
+  total_features?: number;
+  recent_changes?: WhatsNewItem[];
+};
 
 function normalizeWhoCanUseIt(value: unknown): string[] {
   if (Array.isArray(value)) {
@@ -1093,41 +1095,53 @@ function HelpCenterContent() {
                 <Skeleton className="h-16 w-full" />
                 <Skeleton className="h-16 w-full" />
               </div>
-            ) : whatsNewData ? (
-              <div className="space-y-6 relative before:absolute before:inset-0 before:left-3.5 before:w-0.5 before:bg-zinc-200 dark:before:bg-zinc-800">
-                {whatsNewData.recent_changes.map((change, idx) => (
-                  <div key={idx} className="relative flex items-start gap-4 pl-8">
-                    <span className="absolute left-2 top-1.5 w-3.5 h-3.5 rounded-full bg-[#087CFF] ring-4 ring-white dark:ring-[#071426]" />
-                    <div className="flex-1 p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-black/[0.04] dark:border-white/[0.04] space-y-1.5">
-                      <div className="flex flex-wrap items-center justify-between gap-2">
-                        <div className="flex items-center gap-2">
-                          <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
-                            {change.title}
-                          </span>
-                          <Badge className="bg-blue-100 dark:bg-blue-950 text-[#087CFF] border-blue-200 text-[10px]">
-                            v{change.version}
-                          </Badge>
+            ) : whatsNewData ? (() => {
+              const changesList: WhatsNewItem[] = Array.isArray(whatsNewData)
+                ? whatsNewData
+                : Array.isArray((whatsNewData as any)?.recent_changes)
+                ? (whatsNewData as any).recent_changes
+                : [];
+              if (changesList.length === 0) {
+                return (
+                  <p className="text-xs text-zinc-500 py-4">No recent updates recorded at this time.</p>
+                );
+              }
+              return (
+                <div className="space-y-6 relative before:absolute before:inset-0 before:left-3.5 before:w-0.5 before:bg-zinc-200 dark:before:bg-zinc-800">
+                  {changesList.map((change, idx) => (
+                    <div key={idx} className="relative flex items-start gap-4 pl-8">
+                      <span className="absolute left-2 top-1.5 w-3.5 h-3.5 rounded-full bg-[#087CFF] ring-4 ring-white dark:ring-[#071426]" />
+                      <div className="flex-1 p-4 rounded-xl bg-zinc-50 dark:bg-zinc-900/60 border border-black/[0.04] dark:border-white/[0.04] space-y-1.5">
+                        <div className="flex flex-wrap items-center justify-between gap-2">
+                          <div className="flex items-center gap-2">
+                            <span className="text-sm font-bold text-zinc-900 dark:text-zinc-100">
+                              {change.title}
+                            </span>
+                            <Badge className="bg-blue-100 dark:bg-blue-950 text-[#087CFF] border-blue-200 text-[10px]">
+                              v{change.version}
+                            </Badge>
+                          </div>
+                          <span className="text-xs text-zinc-400">{change.date}</span>
                         </div>
-                        <span className="text-xs text-zinc-400">{change.date}</span>
+                        <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
+                          {change.description}
+                        </p>
+                        {change.related_article && (
+                          <div className="pt-2">
+                            <button
+                              onClick={() => handleOpenArticle(change.related_article!)}
+                              className="inline-flex items-center gap-1 text-xs font-semibold text-[#087CFF] hover:underline"
+                            >
+                              Read Feature Guide &rarr;
+                            </button>
+                          </div>
+                        )}
                       </div>
-                      <p className="text-xs text-zinc-600 dark:text-zinc-300 leading-relaxed">
-                        {change.description}
-                      </p>
-                      {change.related_article && (
-                        <div className="pt-2">
-                          <button
-                            onClick={() => handleOpenArticle(change.related_article!)}
-                            className="inline-flex items-center gap-1 text-xs font-semibold text-[#087CFF] hover:underline"
-                          >
-                            Read Feature Guide &rarr;
-                          </button>
-                        </div>
-                      )}
                     </div>
-                  </div>
-                ))}
-              </div>
-            ) : null}
+                  ))}
+                </div>
+              );
+            })() : null}
           </CardContent>
         </Card>
       )}

@@ -1626,13 +1626,53 @@ async def get_live_pilot_summary(db: AsyncSession = Depends(get_db)):
     )
     last_fail_record = last_fail_res.scalar_one_or_none()
 
+    pilot_config_dict = {
+        "enabled": cfg.get("enabled", False),
+        "assignment_group": cfg.get("assignment_group", ""),
+        "max_active_assignments": cfg.get("max_active_assignments", 5),
+        "allowed_employees": cfg.get("allowed_employees", []),
+        "require_eligibility": cfg.get("require_eligibility", True),
+        "require_service_now_sync": cfg.get("require_service_now_sync", True),
+    }
+
+    metrics_dict = {
+        "active_assignments": active_assignments_count,
+        "max_allowed": cfg.get("max_active_assignments", 5),
+        "total_assigned_today": active_assignments_count,
+        "successful_syncs": 0 if not last_sync_inc else 1,
+        "failed_syncs": failed_syncs_count,
+        "dlq_count": dlq_count,
+    }
+
+    active_assignments_list = []
+    for assign, inc, usr in recent_res.all():
+        active_assignments_list.append({
+            "id": str(assign.id),
+            "incident_id": str(inc.id),
+            "incident_number": inc.incident_number,
+            "short_description": inc.short_description,
+            "priority": inc.priority,
+            "employee_name": usr.full_name,
+            "assigned_to": usr.full_name,
+            "assignment_type": assign.assignment_type,
+            "status": assign.status,
+            "assigned_at": assign.assigned_at.isoformat() if assign.assigned_at else None,
+            "servicenow_sync_status": inc.sync_status,
+            "sync_status": inc.sync_status
+        })
+
     return {
-        "automation_mode": curr_mode,
+        "status": pilot_status,
         "pilot_status": pilot_status,
+        "automation_mode": curr_mode,
+        "auto_assignment_enabled": auto_enabled,
+        "pilot_config": pilot_config_dict,
+        "metrics": metrics_dict,
+        "active_assignments": active_assignments_list,
+        "active_assignments_count": active_assignments_count,
         "pilot_assignment_group": cfg.get("assignment_group"),
         "allowed_employees": cfg.get("allowed_employees", []),
         "max_active_assignments": cfg.get("max_active_assignments", 5),
-        "active_assignments": active_assignments_count,
         "recent_assignments": recent_assignments,
         "failed_syncs": failed_syncs_count,
         "dlq_count": dlq_count,

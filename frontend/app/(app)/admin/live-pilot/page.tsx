@@ -19,36 +19,44 @@ import Link from 'next/link';
 import { ContextualHelp } from '@/components/help/contextual-help';
 
 interface PilotSummary {
-  status: 'OFF' | 'READY' | 'ACTIVE' | 'PAUSED';
-  automation_mode: string;
-  auto_assignment_enabled: boolean;
-  pilot_config: {
-    enabled: boolean;
-    assignment_group: string;
-    max_active_assignments: number;
-    allowed_employees: string[];
-    require_eligibility: boolean;
-    require_service_now_sync: boolean;
+  status?: 'OFF' | 'READY' | 'ACTIVE' | 'PAUSED';
+  pilot_status?: 'OFF' | 'READY' | 'ACTIVE' | 'PAUSED';
+  automation_mode?: string;
+  auto_assignment_enabled?: boolean;
+  pilot_assignment_group?: string;
+  allowed_employees?: string[];
+  max_active_assignments?: number;
+  failed_syncs?: number;
+  dlq_count?: number;
+  pilot_config?: {
+    enabled?: boolean;
+    assignment_group?: string;
+    max_active_assignments?: number;
+    allowed_employees?: string[];
+    require_eligibility?: boolean;
+    require_service_now_sync?: boolean;
   };
-  metrics: {
-    active_assignments: number;
-    max_allowed: number;
-    total_assigned_today: number;
-    successful_syncs: number;
-    failed_syncs: number;
-    dlq_count: number;
+  metrics?: {
+    active_assignments?: number;
+    max_allowed?: number;
+    total_assigned_today?: number;
+    successful_syncs?: number;
+    failed_syncs?: number;
+    dlq_count?: number;
   };
-  active_assignments: Array<{
+  active_assignments?: Array<{
     id: string;
-    incident_id: string;
+    incident_id?: string;
     incident_number: string;
     short_description: string;
     priority: string;
-    employee_name: string;
-    assigned_at: string;
-    servicenow_sync_status: string;
+    employee_name?: string;
+    assigned_to?: string;
+    assigned_at?: string;
+    servicenow_sync_status?: string;
+    sync_status?: string;
     assignment_type: string;
-  }>;
+  }> | number;
 }
 
 interface ReadinessReport {
@@ -108,9 +116,9 @@ export default function LivePilotControlPage() {
   // Synchronize local form when summary loads
   React.useEffect(() => {
     if (summary && !configInitialized) {
-      setGroupInput(summary.pilot_config.assignment_group || '');
-      setMaxActiveInput(summary.pilot_config.max_active_assignments || 5);
-      setRosterInput((summary.pilot_config.allowed_employees || []).join(', '));
+      setGroupInput(summary.pilot_config?.assignment_group || summary.pilot_assignment_group || '');
+      setMaxActiveInput(summary.pilot_config?.max_active_assignments || summary.max_active_assignments || 5);
+      setRosterInput((summary.pilot_config?.allowed_employees || summary.allowed_employees || []).join(', '));
       setConfigInitialized(true);
     }
   }, [summary, configInitialized]);
@@ -197,8 +205,9 @@ export default function LivePilotControlPage() {
     },
   });
 
-  const isPaused = summary?.status === 'PAUSED' || summary?.auto_assignment_enabled === false;
-  const isLiveActive = summary?.status === 'ACTIVE' || (summary?.automation_mode === 'LIVE' && summary?.pilot_config?.enabled);
+  const currentPilotStatus = summary?.status || summary?.pilot_status || 'OFF';
+  const isPaused = currentPilotStatus === 'PAUSED' || summary?.auto_assignment_enabled === false;
+  const isLiveActive = currentPilotStatus === 'ACTIVE' || (summary?.automation_mode === 'LIVE' && summary?.pilot_config?.enabled);
 
   return (
     <div className="space-y-6 pb-12">
@@ -208,22 +217,22 @@ export default function LivePilotControlPage() {
           <div className="flex items-center gap-3">
             <h1 className="text-2xl font-bold tracking-tight">Controlled LIVE Pilot Management</h1>
             <ContextualHelp featureKey="live_mode" label="Pilot guide" iconOnly={false} />
-            {summary?.status === 'ACTIVE' && (
+            {currentPilotStatus === 'ACTIVE' && (
               <Badge className="bg-emerald-600 hover:bg-emerald-700 text-white font-semibold animate-pulse">
                 ● LIVE PILOT ACTIVE
               </Badge>
             )}
-            {summary?.status === 'READY' && (
+            {currentPilotStatus === 'READY' && (
               <Badge variant="outline" className="border-blue-500 text-blue-600 font-semibold bg-blue-50/50 dark:bg-blue-950/30">
                 ● READY FOR PILOT
               </Badge>
             )}
-            {summary?.status === 'PAUSED' && (
+            {currentPilotStatus === 'PAUSED' && (
               <Badge className="bg-rose-600 text-white font-semibold">
                 ● AUTOMATION PAUSED
               </Badge>
             )}
-            {summary?.status === 'OFF' && (
+            {currentPilotStatus === 'OFF' && (
               <Badge variant="secondary" className="font-semibold">
                 ○ PILOT OFF (SHADOW MODE)
               </Badge>
@@ -296,9 +305,9 @@ export default function LivePilotControlPage() {
           <CardHeader className="p-4 pb-2">
             <CardDescription className="text-xs">Active Pilot Assignments</CardDescription>
             <CardTitle className="text-2xl font-bold flex items-center justify-between">
-              <span>{summary?.metrics.active_assignments ?? 0}</span>
+              <span>{summary?.metrics?.active_assignments ?? (typeof summary?.active_assignments === 'number' ? summary.active_assignments : 0)}</span>
               <span className="text-xs font-normal text-muted-foreground">
-                / {summary?.metrics.max_allowed ?? 5} max
+                / {summary?.metrics?.max_allowed ?? summary?.max_active_assignments ?? 5} max
               </span>
             </CardTitle>
           </CardHeader>
@@ -311,7 +320,7 @@ export default function LivePilotControlPage() {
           <CardHeader className="p-4 pb-2">
             <CardDescription className="text-xs">Assigned Today</CardDescription>
             <CardTitle className="text-2xl font-bold">
-              {summary?.metrics.total_assigned_today ?? 0}
+              {summary?.metrics?.total_assigned_today ?? (typeof summary?.active_assignments === 'number' ? summary.active_assignments : 0)}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 text-xs text-muted-foreground">
@@ -323,7 +332,7 @@ export default function LivePilotControlPage() {
           <CardHeader className="p-4 pb-2">
             <CardDescription className="text-xs">ServiceNow Syncs</CardDescription>
             <CardTitle className="text-2xl font-bold text-emerald-600">
-              {summary?.metrics.successful_syncs ?? 0}
+              {summary?.metrics?.successful_syncs ?? 0}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 text-xs text-muted-foreground">
@@ -335,7 +344,7 @@ export default function LivePilotControlPage() {
           <CardHeader className="p-4 pb-2">
             <CardDescription className="text-xs">Sync Failures</CardDescription>
             <CardTitle className="text-2xl font-bold text-rose-600">
-              {summary?.metrics.failed_syncs ?? 0}
+              {summary?.metrics?.failed_syncs ?? summary?.failed_syncs ?? 0}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 text-xs text-muted-foreground">
@@ -347,7 +356,7 @@ export default function LivePilotControlPage() {
           <CardHeader className="p-4 pb-2">
             <CardDescription className="text-xs">Dead Letter Queue</CardDescription>
             <CardTitle className="text-2xl font-bold text-amber-600">
-              {summary?.metrics.dlq_count ?? 0}
+              {summary?.metrics?.dlq_count ?? summary?.dlq_count ?? 0}
             </CardTitle>
           </CardHeader>
           <CardContent className="p-4 pt-0 text-xs text-muted-foreground">
@@ -408,12 +417,12 @@ export default function LivePilotControlPage() {
             <ChecklistItem
               title="Assignment Group Isolated"
               status={readiness?.pilot_group_configured}
-              detail={summary?.pilot_config.assignment_group || 'Not set'}
+              detail={summary?.pilot_config?.assignment_group || summary?.pilot_assignment_group || 'Not set'}
             />
             <ChecklistItem
               title="Employee Roster Isolated"
               status={readiness?.pilot_roster_configured}
-              detail={`${summary?.pilot_config.allowed_employees.length || 0} approved`}
+              detail={`${summary?.pilot_config?.allowed_employees?.length || summary?.allowed_employees?.length || 0} approved`}
             />
             <ChecklistItem
               title="Fail-Closed Guard Active"
@@ -531,7 +540,7 @@ export default function LivePilotControlPage() {
                 </CardDescription>
               </div>
               <Badge variant="outline" className="text-xs">
-                {summary?.active_assignments.length ?? 0} active
+                {Array.isArray(summary?.active_assignments) ? summary.active_assignments.length : 0} active
               </Badge>
             </div>
           </CardHeader>
@@ -547,17 +556,17 @@ export default function LivePilotControlPage() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {summary?.active_assignments.length === 0 ? (
+                {(!Array.isArray(summary?.active_assignments) || summary.active_assignments.length === 0) ? (
                   <TableRow>
                     <TableCell colSpan={5} className="text-center py-8 text-sm text-muted-foreground">
                       No active pilot assignments at this moment.
                     </TableCell>
                   </TableRow>
                 ) : (
-                  summary?.active_assignments.map((asgn) => (
+                  summary.active_assignments.map((asgn: any) => (
                     <TableRow key={asgn.id}>
                       <TableCell className="font-semibold font-mono text-xs">
-                        <Link href={`/incidents/${asgn.incident_id}`} className="hover:underline text-blue-600">
+                        <Link href={`/incidents/${asgn.incident_id || asgn.id}`} className="hover:underline text-blue-600">
                           {asgn.incident_number}
                         </Link>
                       </TableCell>
@@ -565,7 +574,7 @@ export default function LivePilotControlPage() {
                         {asgn.short_description}
                       </TableCell>
                       <TableCell className="text-xs font-medium">
-                        {asgn.employee_name}
+                        {asgn.employee_name || asgn.assigned_to || 'Assigned'}
                       </TableCell>
                       <TableCell>
                         <Badge variant="outline" className="text-[10px]">
