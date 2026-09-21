@@ -19,6 +19,7 @@ from app.api.help import router as help_router
 from app.integrations.servicenow.webhook import router as sn_router
 from app.websocket.manager import ws_manager
 from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.database import get_db, engine, Base
 from contextlib import asynccontextmanager
 import uuid as _uuid
