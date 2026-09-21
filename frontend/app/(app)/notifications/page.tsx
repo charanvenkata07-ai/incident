@@ -59,15 +59,7 @@ export default function NotificationsPage() {
   const markAllRead = useMarkAllRead();
   const markRead = useMarkRead();
   const [filterTab, setFilterTab] = React.useState<'ALL' | 'UNREAD' | 'CHAT' | 'WORK'>('ALL');
-
-  if (isLoading) {
-    return (
-      <div className="space-y-4 max-w-3xl mx-auto">
-        <Skeleton className="h-8 w-48 mb-6" />
-        {[1, 2, 3].map(i => <Skeleton key={i} className="h-28 w-full" />)}
-      </div>
-    );
-  }
+  const [localSearch, setLocalSearch] = React.useState('');
 
   const unreadCount = notifications?.filter(n => !n.is_read).length || 0;
 
@@ -79,7 +71,6 @@ export default function NotificationsPage() {
     return true;
   });
 
-  const [localSearch, setLocalSearch] = React.useState('');
   const searchedNotifs = filteredNotifs.filter(n => {
     if (!localSearch.trim()) return true;
     const q = localSearch.toLowerCase();
@@ -104,6 +95,15 @@ export default function NotificationsPage() {
     markRead.mutate(notifId);
     router.push(url);
   };
+
+  if (isLoading) {
+    return (
+      <div className="space-y-4 max-w-3xl mx-auto">
+        <Skeleton className="h-8 w-48 mb-6" />
+        {[1, 2, 3].map(i => <Skeleton key={i} className="h-28 w-full" />)}
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6 max-w-3xl mx-auto">
