@@ -89,6 +89,10 @@ class ApiClient {
             // ignore
           }
         }
+        const error = await res.json().catch(() => null)
+        if (path.includes('/auth/login')) {
+          throw new Error(error?.detail || error?.message || 'Invalid email or password. Please try again.')
+        }
         throw new Error('Your session has expired. Please sign in again.')
       }
       if (res.status === 403) {
