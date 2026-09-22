@@ -10,14 +10,33 @@ import { apiClient } from '@/lib/api-client';
 import { toast } from 'sonner';
 import {
   Activity, Users, AlertTriangle, CheckCircle2,
-  Clock, ShieldAlert, PlayCircle, PauseCircle, RefreshCw
+  Clock, ShieldAlert, PlayCircle, PauseCircle, RefreshCw,
+  Search, CheckCircle, ListFilter
 } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 
 export default function AdminDashboardPage() {
   const { data: stats, isLoading, refetch } = useAdminDashboard();
   const [liveList, setLiveList] = React.useState<any[]>([]);
   const [autoStatus, setAutoStatus] = React.useState<'active' | 'paused'>('active');
+  const [autoMode, setAutoMode] = React.useState<string>('SHADOW');
+  const [statusFilter, setStatusFilter] = React.useState<string>('ALL');
+  const [searchQuery, setSearchQuery] = React.useState<string>('');
   const [isProcessing, setIsProcessing] = React.useState(false);
+
+  // Sync mode and status from backend stats
+  React.useEffect(() => {
+    if (stats) {
+      if (stats.automation_mode) {
+        setAutoMode(stats.automation_mode);
+      }
+      if (stats.automation_mode === 'PAUSED' || stats.auto_assignment_enabled === false) {
+        setAutoStatus('paused');
+      } else {
+        setAutoStatus('active');
+      }
+    }
+  }, [stats]);
 
   const fetchLive = React.useCallback(async () => {
     try {
@@ -49,12 +68,30 @@ export default function AdminDashboardPage() {
       refetch();
     };
 
+    const handleModeUpdate = (data?: unknown) => {
+      const d = data as Record<string, unknown> | undefined;
+      if (d?.automation_mode) {
+        const m = String(d.automation_mode).toUpperCase();
+        setAutoMode(m);
+        if (m === 'PAUSED' || d.auto_assignment_enabled === false) {
+          setAutoStatus('paused');
+        } else {
+          setAutoStatus('active');
+        }
+      }
+      fetchLive();
+      refetch();
+    };
+
     const { wsClient } = require('@/lib/websocket');
     wsClient.on('INCIDENT_ASSIGNED', handleUpdate);
     wsClient.on('INCIDENT_UPDATED', handleUpdate);
     wsClient.on('INCIDENT_ACKNOWLEDGED', handleUpdate);
     wsClient.on('INCIDENT_COMPLETED', handleUpdate);
     wsClient.on('MY_WORK_UPDATED', handleUpdate);
+    wsClient.on('AUTOMATION_MODE_CHANGED', handleModeUpdate);
+    wsClient.on('AUTOMATION_STATUS_CHANGED', handleModeUpdate);
+    wsClient.on('SYSTEM_SETTING_UPDATED', handleModeUpdate);
     wsClient.on('RECONNECTED', handleUpdate);
     return () => {
       wsClient.off('INCIDENT_ASSIGNED', handleUpdate);
@@ -62,6 +99,9 @@ export default function AdminDashboardPage() {
       wsClient.off('INCIDENT_ACKNOWLEDGED', handleUpdate);
       wsClient.off('INCIDENT_COMPLETED', handleUpdate);
       wsClient.off('MY_WORK_UPDATED', handleUpdate);
+      wsClient.off('AUTOMATION_MODE_CHANGED', handleModeUpdate);
+      wsClient.off('AUTOMATION_STATUS_CHANGED', handleModeUpdate);
+      wsClient.off('SYSTEM_SETTING_UPDATED', handleModeUpdate);
       wsClient.off('RECONNECTED', handleUpdate);
     };
   }, [fetchLive, refetch]);
@@ -70,14 +110,18 @@ export default function AdminDashboardPage() {
     setIsProcessing(true);
     try {
       if (autoStatus === 'active') {
-        await apiClient.post('/api/admin/automation/pause');
+        const res: any = await apiClient.post('/api/admin/automation/pause');
         setAutoStatus('paused');
+        setAutoMode('PAUSED');
         toast.warning('Automatic assignment paused. Incidents will queue as Assignment Pending.');
       } else {
-        await apiClient.post('/api/admin/automation/resume');
+        const res: any = await apiClient.post('/api/admin/automation/resume');
         setAutoStatus('active');
+        setAutoMode(res?.automation_mode || 'SHADOW');
         toast.success('Automatic assignment resumed successfully.');
       }
+      fetchLive();
+      refetch();
     } catch (err: any) {
       toast.error(err?.message || 'Failed to update automation state');
     } finally {
@@ -98,6 +142,39 @@ export default function AdminDashboardPage() {
       setIsProcessing(false);
     }
   };
+
+  const counts = React.useMemo(() => {
+    return {
+      all: liveList.length,
+      completed: liveList.filter(i => i?.status === 'COMPLETED').length,
+      in_progress: liveList.filter(i => i?.status === 'IN_PROGRESS').length,
+      acknowledged: liveList.filter(i => i?.status === 'ACKNOWLEDGED').length,
+      assigned: liveList.filter(i => i?.status === 'ASSIGNED' || !i?.status).length,
+    };
+  }, [liveList]);
+
+  const filteredList = React.useMemo(() => {
+    return liveList.filter(item => {
+      const status = item?.status || 'ASSIGNED';
+      const matchesFilter =
+        statusFilter === 'ALL' ||
+        (statusFilter === 'COMPLETED' && status === 'COMPLETED') ||
+        (statusFilter === 'IN_PROGRESS' && status === 'IN_PROGRESS') ||
+        (statusFilter === 'ACKNOWLEDGED' && status === 'ACKNOWLEDGED') ||
+        (statusFilter === 'ASSIGNED' && (status === 'ASSIGNED' || !item?.status));
+
+      if (!matchesFilter) return false;
+
+      if (!searchQuery.trim()) return true;
+      const q = searchQuery.toLowerCase();
+      const incNum = (item?.incident_number || '').toLowerCase();
+      const desc = (item?.short_description || '').toLowerCase();
+      const empName = (item?.employee_name || '').toLowerCase();
+      const empCode = (item?.employee_code || '').toLowerCase();
+      const teamName = (item?.team_name || '').toLowerCase();
+      return incNum.includes(q) || desc.includes(q) || empName.includes(q) || empCode.includes(q) || teamName.includes(q);
+    });
+  }, [liveList, statusFilter, searchQuery]);
 
   if (isLoading) {
     return (
@@ -232,12 +309,31 @@ export default function AdminDashboardPage() {
         </div>
         <div className="p-3 bg-card border rounded-lg flex items-center justify-between">
           <span className="text-muted-foreground">Automation Mode:</span>
-          <span className={`font-semibold ${
-            autoStatus === 'paused'
+          <span className={`font-semibold flex items-center gap-1.5 ${
+            autoStatus === 'paused' || autoMode === 'PAUSED'
               ? 'text-rose-600'
+              : autoMode === 'LIVE'
+              ? 'text-emerald-600'
+              : autoMode === 'DRY_RUN'
+              ? 'text-blue-600'
               : 'text-amber-500'
           }`}>
-            ● {autoStatus === 'paused' ? 'PAUSED' : 'DRY RUN (PROTECTED)'}
+            <span className={`w-2 h-2 rounded-full ${
+              autoStatus === 'paused' || autoMode === 'PAUSED'
+                ? 'bg-rose-600 animate-pulse'
+                : autoMode === 'LIVE'
+                ? 'bg-emerald-500'
+                : autoMode === 'DRY_RUN'
+                ? 'bg-blue-500'
+                : 'bg-amber-500'
+            }`} />
+            {autoStatus === 'paused' || autoMode === 'PAUSED'
+              ? 'PAUSED'
+              : autoMode === 'LIVE'
+              ? 'LIVE (AUTONOMOUS)'
+              : autoMode === 'DRY_RUN'
+              ? 'DRY RUN (PROTECTED)'
+              : 'SHADOW (MONITORING)'}
           </span>
         </div>
         <div className="p-3 bg-card border rounded-lg flex items-center justify-between">
@@ -246,50 +342,128 @@ export default function AdminDashboardPage() {
         </div>
       </div>
 
-      {/* Live Assignment Board */}
+      {/* Live Assignment Board (Full History & Telemetry) */}
       <Card className="shadow-sm">
-        <CardHeader className="p-4 sm:p-6 border-b flex flex-row items-center justify-between">
-          <div>
-            <CardTitle className="text-base sm:text-lg font-semibold">Live Incident Assignment Board</CardTitle>
-            <p className="text-xs text-muted-foreground mt-0.5">Real-time dispatches from ServiceNow webhook into eligible engineers</p>
+        <CardHeader className="p-4 sm:p-6 border-b space-y-4">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+            <div>
+              <div className="flex items-center gap-2">
+                <CardTitle className="text-base sm:text-lg font-semibold">Live Incident Assignment Board</CardTitle>
+                <span className="text-xs font-semibold px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                  {liveList.length} Total Records
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground mt-0.5">Full historical telemetry of all assignments and completed tasks across all employees</p>
+            </div>
+            <Button variant="ghost" size="sm" onClick={fetchLive} className="h-8 text-xs shrink-0">
+              <RefreshCw className="mr-1 h-3.5 w-3.5" /> Refresh
+            </Button>
           </div>
-          <Button variant="ghost" size="sm" onClick={fetchLive} className="h-8 text-xs">
-            Refresh
-          </Button>
+
+          {/* Filter Pills and Search */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+            <div className="flex items-center gap-1.5 flex-wrap">
+              {[
+                { key: 'ALL', label: 'All', count: counts.all },
+                { key: 'COMPLETED', label: 'Completed', count: counts.completed },
+                { key: 'IN_PROGRESS', label: 'In Progress', count: counts.in_progress },
+                { key: 'ACKNOWLEDGED', label: 'Acknowledged', count: counts.acknowledged },
+                { key: 'ASSIGNED', label: 'Assigned', count: counts.assigned },
+              ].map(tab => (
+                <button
+                  key={tab.key}
+                  onClick={() => setStatusFilter(tab.key)}
+                  className={`text-xs px-2.5 py-1 rounded-md font-medium transition-colors ${
+                    statusFilter === tab.key
+                      ? 'bg-primary text-primary-foreground shadow-sm'
+                      : 'bg-muted/60 text-muted-foreground hover:bg-muted hover:text-foreground'
+                  }`}
+                >
+                  {tab.label} <span className="text-[10px] opacity-80">({tab.count})</span>
+                </button>
+              ))}
+            </div>
+
+            <div className="relative w-full sm:w-64">
+              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+              <Input
+                placeholder="Filter by employee, ID, team..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="h-8 pl-8 text-xs"
+              />
+            </div>
+          </div>
         </CardHeader>
+
         <CardContent className="p-0">
-          {liveList.length === 0 ? (
+          {filteredList.length === 0 ? (
             <div className="p-8 text-center text-sm text-muted-foreground">
-              No live incident assignments recorded yet. Ingest a ServiceNow incident to view live updates.
+              {liveList.length === 0
+                ? 'No incident assignments recorded yet. Ingest an incident to view live updates.'
+                : 'No assignments match the active filter or search query.'}
             </div>
           ) : (
             <div className="divide-y divide-border">
-              {liveList.map((item, idx) => (
-                <div key={idx} className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-muted/30 transition-colors">
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono font-semibold text-sm text-foreground">{item?.incident_number || 'INC'}</span>
-                      <span className="text-xs bg-muted px-2 py-0.5 rounded text-muted-foreground uppercase">{item?.assignment_type || 'AUTO'}</span>
-                    </div>
-                    <p className="text-xs sm:text-sm text-muted-foreground line-clamp-1">{item?.short_description || ''}</p>
-                  </div>
-                  <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
-                    <div className="text-right">
-                      <div className="text-xs font-semibold">{item?.employee_name || 'Assigned'}</div>
-                      <div className="text-[11px] text-muted-foreground">
-                        {item?.status === 'COMPLETED'
-                          ? 'Work Completed'
-                          : item?.status === 'IN_PROGRESS'
-                          ? 'In Progress'
-                          : item?.status === 'ACKNOWLEDGED'
-                          ? 'Acknowledged'
-                          : 'Assigned'}
+              {filteredList.map((item, idx) => {
+                const timeStr = item?.completed_at
+                  ? `Completed ${new Date(item.completed_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                  : item?.started_at
+                  ? `Started ${new Date(item.started_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                  : item?.acknowledged_at
+                  ? `Ack ${new Date(item.acknowledged_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                  : item?.assigned_at
+                  ? `Assigned ${new Date(item.assigned_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                  : '';
+
+                return (
+                  <div key={item?.id || idx} className="p-3.5 sm:p-4 flex flex-col sm:flex-row sm:items-center justify-between gap-2 hover:bg-muted/30 transition-colors">
+                    <div className="space-y-1">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-mono font-semibold text-sm text-foreground">{item?.incident_number || 'INC'}</span>
+                        {item?.priority && (
+                          <span className={`text-[10px] font-bold px-1.5 py-0.5 rounded ${
+                            item.priority === 'P1' ? 'bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300' :
+                            item.priority === 'P2' ? 'bg-amber-100 text-amber-700 dark:bg-amber-950 dark:text-amber-300' :
+                            'bg-muted text-muted-foreground'
+                          }`}>
+                            {item.priority}
+                          </span>
+                        )}
+                        <span className="text-xs bg-muted px-2 py-0.5 rounded text-muted-foreground uppercase">{item?.assignment_type || 'AUTO'}</span>
+                        {item?.team_name && (
+                          <span className="text-[11px] text-muted-foreground font-medium">({item.team_name})</span>
+                        )}
                       </div>
+                      <p className="text-xs sm:text-sm text-muted-foreground line-clamp-1">{item?.short_description || ''}</p>
                     </div>
-                    <StatusBadge status={item?.status} type="status" />
+
+                    <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
+                      <div className="text-right">
+                        <div className="text-xs font-semibold">
+                          {item?.employee_name || 'Assigned'}
+                          {item?.employee_code && (
+                            <span className="text-[10px] text-muted-foreground ml-1">({item.employee_code})</span>
+                          )}
+                        </div>
+                        <div className="text-[11px] text-muted-foreground flex items-center justify-end gap-1.5">
+                          <span>
+                            {item?.status === 'COMPLETED'
+                              ? 'Work Completed'
+                              : item?.status === 'IN_PROGRESS'
+                              ? 'In Progress'
+                              : item?.status === 'ACKNOWLEDGED'
+                              ? 'Acknowledged'
+                              : 'Assigned'}
+                          </span>
+                          {timeStr && <span className="text-[10px] opacity-75">• {timeStr}</span>}
+                        </div>
+                      </div>
+                      <StatusBadge status={item?.status} type="status" />
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           )}
         </CardContent>

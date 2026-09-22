@@ -228,23 +228,23 @@ class ServiceNowClient:
         response.raise_for_status()
         return response.json().get("result", [])
 
-    async def update_incident(self, sys_id: str, fields: dict) -> dict:
+    async def update_incident(self, sys_id: str, fields: dict, mode: str = None) -> dict:
         """
         Updates an incident record in ServiceNow.
-        SAFETY GUARD: Gated by AUTOMATION_MODE. In SHADOW or DRY_RUN mode, skips live mutation.
+        SAFETY GUARD: Gated by AUTOMATION_MODE. In SHADOW, DRY_RUN, or PAUSED mode, skips live mutation.
         """
-        mode = settings.AUTOMATION_MODE.upper()
-        if mode in ("SHADOW", "DRY_RUN") or settings.SHADOW_MODE or settings.DRY_RUN_MODE:
+        active_mode = (mode or settings.AUTOMATION_MODE).upper()
+        if active_mode in ("SHADOW", "DRY_RUN", "PAUSED") or (mode is None and (settings.SHADOW_MODE or settings.DRY_RUN_MODE)):
             logger.info(
                 "servicenow_mutation_prevented_shadow_mode",
                 sys_id=sys_id,
                 fields_attempted=list(fields.keys()),
-                mode=mode
+                mode=active_mode
             )
             return {
                 "status": "skipped",
-                "mode": mode,
-                "reason": f"Mutation prohibited while in SHADOW/DRY_RUN mode ({mode})",
+                "mode": active_mode,
+                "reason": f"Mutation prohibited while in SHADOW/DRY_RUN/PAUSED mode ({active_mode})",
                 "sys_id": sys_id
             }
 
@@ -254,14 +254,14 @@ class ServiceNowClient:
         response.raise_for_status()
         return response.json().get("result", {})
 
-    async def add_work_note(self, sys_id: str, note: str) -> dict:
+    async def add_work_note(self, sys_id: str, note: str, mode: str = None) -> dict:
         """Appends a work note to the incident."""
-        return await self.update_incident(sys_id, {"work_notes": note})
+        return await self.update_incident(sys_id, {"work_notes": note}, mode=mode)
 
-    async def update_assignment(self, sys_id: str, assigned_to: str) -> dict:
+    async def update_assignment(self, sys_id: str, assigned_to: str, mode: str = None) -> dict:
         """Updates the assigned_to field on the incident."""
-        return await self.update_incident(sys_id, {"assigned_to": assigned_to})
+        return await self.update_incident(sys_id, {"assigned_to": assigned_to}, mode=mode)
 
-    async def update_state(self, sys_id: str, state: str) -> dict:
+    async def update_state(self, sys_id: str, state: str, mode: str = None) -> dict:
         """Updates incident state in ServiceNow."""
-        return await self.update_incident(sys_id, {"state": state})
+        return await self.update_incident(sys_id, {"state": state}, mode=mode)

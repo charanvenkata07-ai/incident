@@ -94,23 +94,24 @@ class AssignmentEngine:
                 return None
 
             # Assignment Group Isolation
-            pilot_group = pilot_cfg.get("assignment_group", "Analytics – MDM L3")
+            pilot_group = pilot_cfg.get("assignment_group", "")
             clean_pilot = (pilot_group or "").lower().strip()
             clean_inc = (locked_inc.assignment_group or "").lower().strip()
-            if clean_pilot not in clean_inc and clean_inc not in clean_pilot:
-                await self.audit_service.log(
-                    'PILOT_GROUP_FILTERED',
-                    'INCIDENT',
-                    locked_inc.id,
-                    new_value={
-                        "incident_number": getattr(locked_inc, "incident_number", "INC_UNKNOWN"),
-                        "incident_group": locked_inc.assignment_group,
-                        "pilot_group": pilot_group
-                    },
-                    reason=f"Incident group '{locked_inc.assignment_group}' filtered: only pilot group '{pilot_group}' is automated in pilot"
-                )
-                logger.info("pilot_group_filtered", incident=getattr(locked_inc, "incident_number", "INC"), group=locked_inc.assignment_group)
-                return None
+            if clean_pilot and clean_pilot not in ("all", "*") and clean_inc:
+                if clean_pilot not in clean_inc and clean_inc not in clean_pilot:
+                    await self.audit_service.log(
+                        'PILOT_GROUP_FILTERED',
+                        'INCIDENT',
+                        locked_inc.id,
+                        new_value={
+                            "incident_number": getattr(locked_inc, "incident_number", "INC_UNKNOWN"),
+                            "incident_group": locked_inc.assignment_group,
+                            "pilot_group": pilot_group
+                        },
+                        reason=f"Incident group '{locked_inc.assignment_group}' filtered: only pilot group '{pilot_group}' is automated in pilot"
+                    )
+                    logger.info("pilot_group_filtered", incident=getattr(locked_inc, "incident_number", "INC"), group=locked_inc.assignment_group)
+                    return None
 
             # Max Active Assignments Limit Guard
             max_active = pilot_cfg.get("max_active_assignments", 5)

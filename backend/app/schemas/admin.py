@@ -8,6 +8,8 @@ class DashboardStats(BaseModel):
     employees_on_shift: int
     available_employees: int
     busy_employees: int
+    automation_mode: Optional[str] = "SHADOW"
+    auto_assignment_enabled: Optional[bool] = True
 
 class LiveAssignment(BaseModel):
     incident_number: str

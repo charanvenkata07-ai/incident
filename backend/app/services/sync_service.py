@@ -28,13 +28,29 @@ class SyncService:
             client_secret=settings.SERVICENOW_CLIENT_SECRET
         )
 
+    async def _get_current_mode(self) -> str:
+        try:
+            from app.models.settings import SystemSetting
+            res = await self.db.execute(select(SystemSetting).where(SystemSetting.key == "automation_mode"))
+            setting = res.scalar_one_or_none()
+            if setting and setting.value and "mode" in setting.value:
+                return str(setting.value["mode"]).upper()
+        except Exception:
+            pass
+        from app.core.config import settings
+        return settings.AUTOMATION_MODE.upper()
+
     async def sync_assignment_to_servicenow(self, incident: Incident, employee: Employee):
         """Dispatches assignment update to ServiceNow with error isolation."""
+        mode = await self._get_current_mode()
         client = self._get_client()
         assignee_name = employee.user.full_name if employee.user else "Assigned Engineer"
         try:
-            await client.update_assignment(incident.servicenow_sys_id, assignee_name)
-            incident.sync_status = "SYNCED"
+            res = await client.update_assignment(incident.servicenow_sys_id, assignee_name, mode=mode)
+            if isinstance(res, dict) and res.get("status") == "skipped":
+                logger.info("servicenow_sync_assignment_skipped", mode=mode, incident=incident.incident_number)
+            else:
+                incident.sync_status = "SYNCED"
         except Exception as e:
             logger.error("servicenow_sync_assignment_failed", incident=incident.incident_number, error=str(e))
             incident.sync_status = "SYNC_FAILED"
@@ -42,10 +58,14 @@ class SyncService:
 
     async def sync_status_to_servicenow(self, incident: Incident, new_state: str):
         """Dispatches status update to ServiceNow."""
+        mode = await self._get_current_mode()
         client = self._get_client()
         try:
-            await client.update_state(incident.servicenow_sys_id, new_state)
-            incident.sync_status = "SYNCED"
+            res = await client.update_state(incident.servicenow_sys_id, new_state, mode=mode)
+            if isinstance(res, dict) and res.get("status") == "skipped":
+                logger.info("servicenow_sync_status_skipped", mode=mode, incident=incident.incident_number)
+            else:
+                incident.sync_status = "SYNCED"
         except Exception as e:
             logger.error("servicenow_sync_status_failed", incident=incident.incident_number, error=str(e))
             incident.sync_status = "SYNC_FAILED"

@@ -166,6 +166,8 @@ export interface DashboardStats {
   employees_on_shift: number
   available_employees: number
   busy_employees: number
+  automation_mode?: string
+  auto_assignment_enabled?: boolean
 }
 
 export interface SystemHealth {

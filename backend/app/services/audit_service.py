@@ -6,10 +6,11 @@ class AuditService:
     def __init__(self, db: AsyncSession):
         self.db = db
 
-    async def log(self, action, entity_type, entity_id=None, old_value=None, new_value=None, reason=None, actor_id=None):
+    async def log(self, action, entity_type, entity_id=None, old_value=None, new_value=None, reason=None, actor_id=None, request_id=None, ip_address=None, **kwargs):
         audit = AuditLog(
             action=action, entity_type=entity_type, entity_id=entity_id, 
-            old_value=old_value, new_value=new_value, reason=reason, actor_id=actor_id
+            old_value=old_value, new_value=new_value, reason=reason, actor_id=actor_id,
+            request_id=request_id, ip_address=ip_address
         )
         self.db.add(audit)
         await self.db.flush()

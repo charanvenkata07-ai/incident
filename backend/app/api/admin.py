@@ -79,12 +79,22 @@ async def dashboard(db: AsyncSession = Depends(get_db)):
     )
     busy_employees = busy_res.scalar() or 0
 
+    mode_res = await db.execute(select(SystemSetting).where(SystemSetting.key == "automation_mode"))
+    mode_setting = mode_res.scalar_one_or_none()
+    curr_mode = mode_setting.value.get("mode", "SHADOW") if (mode_setting and mode_setting.value) else settings.AUTOMATION_MODE
+
+    auto_res = await db.execute(select(SystemSetting).where(SystemSetting.key == "auto_assignment_enabled"))
+    auto_setting = auto_res.scalar_one_or_none()
+    auto_enabled = auto_setting.value.get("enabled", True) if (auto_setting and auto_setting.value) else True
+
     return DashboardStats(
         active_incidents=active_incidents,
         unassigned_incidents=unassigned_incidents,
         employees_on_shift=employees_on_shift,
         available_employees=available_employees,
-        busy_employees=busy_employees
+        busy_employees=busy_employees,
+        automation_mode=curr_mode,
+        auto_assignment_enabled=auto_enabled
     )
 
 @router.get("/health")
@@ -98,17 +108,11 @@ async def health(db: AsyncSession = Depends(get_db)):
         "servicenow": "mock_active" if settings.SERVICENOW_MOCK else "live_connected"
     }
 
-# 2. LIVE ASSIGNMENTS FEED
+# 2. LIVE ASSIGNMENTS FEED (FULL ASSIGNMENT & COMPLETION HISTORY)
 @router.get("/assignments/live")
 async def live_assignments(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(IncidentAssignment)
-        .where(
-            or_(
-                IncidentAssignment.is_active == True,
-                IncidentAssignment.status == "COMPLETED"
-            )
-        )
         .order_by(
             desc(
                 func.coalesce(
@@ -119,27 +123,33 @@ async def live_assignments(db: AsyncSession = Depends(get_db)):
                 )
             )
         )
-        .limit(20)
+        .limit(100)
     )
     assignments = result.scalars().all()
-    seen_incidents = set()
     out = []
     for a in assignments:
-        if a.incident_id in seen_incidents:
-            continue
         inc = await db.get(Incident, a.incident_id)
         emp = await db.get(Employee, a.employee_id)
         user = await db.get(User, emp.user_id) if emp else None
-        if inc and user:
-            seen_incidents.add(a.incident_id)
+        team = await db.get(Team, emp.team_id) if (emp and emp.team_id) else None
+        if inc:
             out.append({
+                "id": str(a.id),
+                "incident_id": str(a.incident_id),
                 "incident_number": inc.incident_number,
                 "short_description": inc.short_description,
-                "employee_name": user.full_name,
+                "priority": inc.priority,
+                "employee_id": str(a.employee_id),
+                "employee_name": user.full_name if user else "Assigned Engineer",
+                "employee_code": emp.employee_code if emp else None,
+                "team_name": team.name if team else None,
                 "assignment_type": a.assignment_type,
                 "status": a.status,
-                "assigned_at": a.assigned_at,
-                "completed_at": a.completed_at
+                "is_active": a.is_active,
+                "assigned_at": a.assigned_at.isoformat() if a.assigned_at else None,
+                "acknowledged_at": a.acknowledged_at.isoformat() if a.acknowledged_at else None,
+                "started_at": a.started_at.isoformat() if a.started_at else None,
+                "completed_at": a.completed_at.isoformat() if a.completed_at else None,
             })
     return out
 
@@ -742,6 +752,7 @@ async def pause_automation(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # 1. Update auto_assignment_enabled
     res = await db.execute(select(SystemSetting).where(SystemSetting.key == "auto_assignment_enabled"))
     setting = res.scalar_one_or_none()
     if not setting:
@@ -749,6 +760,25 @@ async def pause_automation(
         db.add(setting)
     else:
         setting.value = {"enabled": False}
+
+    # 2. Track previous mode and switch automation_mode to PAUSED
+    mode_res = await db.execute(select(SystemSetting).where(SystemSetting.key == "automation_mode"))
+    mode_setting = mode_res.scalar_one_or_none()
+    curr_mode = mode_setting.value.get("mode", "SHADOW") if (mode_setting and mode_setting.value) else settings.AUTOMATION_MODE
+    if curr_mode != "PAUSED":
+        prev_res = await db.execute(select(SystemSetting).where(SystemSetting.key == "previous_automation_mode"))
+        prev_setting = prev_res.scalar_one_or_none()
+        if not prev_setting:
+            prev_setting = SystemSetting(key="previous_automation_mode", value={"mode": curr_mode})
+            db.add(prev_setting)
+        else:
+            prev_setting.value = {"mode": curr_mode}
+
+    if not mode_setting:
+        mode_setting = SystemSetting(key="automation_mode", value={"mode": "PAUSED"})
+        db.add(mode_setting)
+    else:
+        mode_setting.value = {"mode": "PAUSED"}
     
     actor_name = getattr(current_user, "full_name", "Administrator")
     actor_id = getattr(current_user, "id", None)
@@ -757,14 +787,31 @@ async def pause_automation(
     await audit.log(
         action="AUTOMATION_STATUS_CHANGED",
         entity_type="SYSTEM",
-        old_value={"status": "ACTIVE", "enabled": True},
-        new_value={"status": "PAUSED", "enabled": False},
+        old_value={"status": "ACTIVE", "enabled": True, "mode": curr_mode},
+        new_value={"status": "PAUSED", "enabled": False, "mode": "PAUSED"},
         reason=f"Administrator {actor_name} paused automation",
         actor_id=actor_id,
         request_id=req_id
     )
     await db.commit()
-    return {"message": "Automatic assignment paused", "status": "paused"}
+
+    event_data = {
+        "status": "paused",
+        "auto_assignment_enabled": False,
+        "automation_mode": "PAUSED",
+        "previous_mode": curr_mode,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    await ws_manager.broadcast_to_admins("AUTOMATION_STATUS_CHANGED", event_data)
+    await ws_manager.broadcast_to_admins("AUTOMATION_MODE_CHANGED", event_data)
+    await ws_manager.broadcast_all("SYSTEM_SETTING_UPDATED", event_data)
+
+    return {
+        "message": "Automatic assignment paused",
+        "status": "paused",
+        "automation_mode": "PAUSED",
+        "auto_assignment_enabled": False
+    }
 
 @router.post("/automation/resume")
 async def resume_automation(
@@ -772,6 +819,7 @@ async def resume_automation(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user)
 ):
+    # 1. Update auto_assignment_enabled
     res = await db.execute(select(SystemSetting).where(SystemSetting.key == "auto_assignment_enabled"))
     setting = res.scalar_one_or_none()
     if not setting:
@@ -780,6 +828,21 @@ async def resume_automation(
     else:
         setting.value = {"enabled": True}
 
+    # 2. Restore previous automation mode (defaulting to SHADOW)
+    prev_res = await db.execute(select(SystemSetting).where(SystemSetting.key == "previous_automation_mode"))
+    prev_setting = prev_res.scalar_one_or_none()
+    restored_mode = prev_setting.value.get("mode", "SHADOW") if (prev_setting and prev_setting.value) else "SHADOW"
+    if restored_mode == "PAUSED":
+        restored_mode = "SHADOW"
+
+    mode_res = await db.execute(select(SystemSetting).where(SystemSetting.key == "automation_mode"))
+    mode_setting = mode_res.scalar_one_or_none()
+    if not mode_setting:
+        mode_setting = SystemSetting(key="automation_mode", value={"mode": restored_mode})
+        db.add(mode_setting)
+    else:
+        mode_setting.value = {"mode": restored_mode}
+
     actor_name = getattr(current_user, "full_name", "Administrator")
     actor_id = getattr(current_user, "id", None)
     req_id = request.headers.get("x-request-id", str(uuid.uuid4())) if request else str(uuid.uuid4())
@@ -787,14 +850,30 @@ async def resume_automation(
     await audit.log(
         action="AUTOMATION_STATUS_CHANGED",
         entity_type="SYSTEM",
-        old_value={"status": "PAUSED", "enabled": False},
-        new_value={"status": "ACTIVE", "enabled": True},
+        old_value={"status": "PAUSED", "enabled": False, "mode": "PAUSED"},
+        new_value={"status": "ACTIVE", "enabled": True, "mode": restored_mode},
         reason=f"Administrator {actor_name} resumed automation",
         actor_id=actor_id,
         request_id=req_id
     )
     await db.commit()
-    return {"message": "Automatic assignment resumed", "status": "active"}
+
+    event_data = {
+        "status": "active",
+        "auto_assignment_enabled": True,
+        "automation_mode": restored_mode,
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    await ws_manager.broadcast_to_admins("AUTOMATION_STATUS_CHANGED", event_data)
+    await ws_manager.broadcast_to_admins("AUTOMATION_MODE_CHANGED", event_data)
+    await ws_manager.broadcast_all("SYSTEM_SETTING_UPDATED", event_data)
+
+    return {
+        "message": "Automatic assignment resumed",
+        "status": "active",
+        "automation_mode": restored_mode,
+        "auto_assignment_enabled": True
+    }
 
 # 6. SERVICENOW INTEGRATION CONTROL & STATUS
 @router.get("/integrations/servicenow")
@@ -1364,6 +1443,47 @@ async def set_automation_mode(
     else:
         setting.value = {"mode": target_mode}
 
+    # Synchronize auxiliary mode and automation flags
+    dry_run_res = await db.execute(select(SystemSetting).where(SystemSetting.key == "dry_run_mode"))
+    dry_run_setting = dry_run_res.scalar_one_or_none()
+    if not dry_run_setting:
+        db.add(SystemSetting(key="dry_run_mode", value={"enabled": target_mode == "DRY_RUN"}))
+    else:
+        dry_run_setting.value = {"enabled": target_mode == "DRY_RUN"}
+
+    shadow_res = await db.execute(select(SystemSetting).where(SystemSetting.key == "shadow_mode"))
+    shadow_setting = shadow_res.scalar_one_or_none()
+    if not shadow_setting:
+        db.add(SystemSetting(key="shadow_mode", value={"enabled": target_mode == "SHADOW"}))
+    else:
+        shadow_setting.value = {"enabled": target_mode == "SHADOW"}
+
+    auto_res = await db.execute(select(SystemSetting).where(SystemSetting.key == "auto_assignment_enabled"))
+    auto_setting = auto_res.scalar_one_or_none()
+    is_auto_on = target_mode != "PAUSED"
+    if not auto_setting:
+        db.add(SystemSetting(key="auto_assignment_enabled", value={"enabled": is_auto_on}))
+    else:
+        auto_setting.value = {"enabled": is_auto_on}
+
+    if target_mode == "LIVE":
+        pilot_res = await db.execute(select(SystemSetting).where(SystemSetting.key == "live_pilot_config"))
+        pilot_setting = pilot_res.scalar_one_or_none()
+        if not pilot_setting:
+            db.add(SystemSetting(key="live_pilot_config", value={"enabled": True, "assignment_group": "all"}))
+        else:
+            cfg_dict = dict(pilot_setting.value or {})
+            cfg_dict["enabled"] = True
+            pilot_setting.value = cfg_dict
+
+    if target_mode != "PAUSED" and previous_mode != "PAUSED":
+        prev_res = await db.execute(select(SystemSetting).where(SystemSetting.key == "previous_automation_mode"))
+        prev_setting = prev_res.scalar_one_or_none()
+        if not prev_setting:
+            db.add(SystemSetting(key="previous_automation_mode", value={"mode": previous_mode}))
+        else:
+            prev_setting.value = {"mode": previous_mode}
+
     actor_name = getattr(current_user, "full_name", "Administrator")
     actor_id = getattr(current_user, "id", None)
     req_id = request.headers.get("x-request-id", str(uuid.uuid4())) if request else str(uuid.uuid4())
@@ -1375,10 +1495,31 @@ async def set_automation_mode(
         new_value={"mode": target_mode, "confirmed": confirmed},
         reason=f"Administrator {actor_name} set automation mode from {previous_mode} to {target_mode}",
         actor_id=actor_id,
+        request_id=req_id
     )
 
     await db.commit()
-    return {"message": f"Automation mode updated to {target_mode}", "mode": target_mode, "previous_mode": previous_mode}
+
+    broadcast_payload = {
+        "automation_mode": target_mode,
+        "previous_mode": previous_mode,
+        "auto_assignment_enabled": is_auto_on,
+        "dry_run_mode": target_mode == "DRY_RUN",
+        "shadow_mode": target_mode == "SHADOW",
+        "timestamp": datetime.now(timezone.utc).isoformat()
+    }
+    await ws_manager.broadcast_to_admins("AUTOMATION_MODE_CHANGED", broadcast_payload)
+    await ws_manager.broadcast_to_admins("AUTOMATION_STATUS_CHANGED", broadcast_payload)
+    await ws_manager.broadcast_all("SYSTEM_SETTING_UPDATED", broadcast_payload)
+
+    return {
+        "message": f"Automation mode updated to {target_mode}",
+        "mode": target_mode,
+        "previous_mode": previous_mode,
+        "auto_assignment_enabled": is_auto_on,
+        "dry_run_mode": target_mode == "DRY_RUN",
+        "shadow_mode": target_mode == "SHADOW"
+    }
 
 # -------------------------------------------------------------------------
 # CONTROLLED LIVE PILOT MANAGEMENT

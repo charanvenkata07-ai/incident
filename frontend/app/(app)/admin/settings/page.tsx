@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import { useQueryClient } from '@tanstack/react-query';
 import { useAdminSettings } from '@/hooks/use-admin';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -25,6 +26,7 @@ interface SettingsData {
 const REQUIRED_PHRASE = 'ENABLE LIVE ASSIGNMENT';
 
 export default function AdminSettingsPage() {
+  const queryClient = useQueryClient();
   const { data: settings, isLoading, refetch } = useAdminSettings() as {
     data: SettingsData | undefined;
     isLoading: boolean;
@@ -33,6 +35,24 @@ export default function AdminSettingsPage() {
   const [isConfirmLiveOpen, setIsConfirmLiveOpen] = React.useState(false);
   const [confirmationPhrase, setConfirmationPhrase] = React.useState('');
   const [isUpdating, setIsUpdating] = React.useState(false);
+
+  // Sync mode changes via WebSocket
+  React.useEffect(() => {
+    const handleUpdate = () => {
+      refetch();
+      queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
+    };
+    const { wsClient } = require('@/lib/websocket');
+    wsClient.on('AUTOMATION_MODE_CHANGED', handleUpdate);
+    wsClient.on('AUTOMATION_STATUS_CHANGED', handleUpdate);
+    wsClient.on('SYSTEM_SETTING_UPDATED', handleUpdate);
+    return () => {
+      wsClient.off('AUTOMATION_MODE_CHANGED', handleUpdate);
+      wsClient.off('AUTOMATION_STATUS_CHANGED', handleUpdate);
+      wsClient.off('SYSTEM_SETTING_UPDATED', handleUpdate);
+    };
+  }, [refetch, queryClient]);
 
   const changeMode = async (targetMode: string, confirmed = false) => {
     // LIVE requires explicit confirmation dialog with typed phrase
@@ -52,6 +72,8 @@ export default function AdminSettingsPage() {
       setIsConfirmLiveOpen(false);
       setConfirmationPhrase('');
       refetch();
+      queryClient.invalidateQueries({ queryKey: ['admin-settings'] });
+      queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
     } catch (err: any) {
       toast.error(err?.message || 'Failed to update automation mode');
     } finally {
