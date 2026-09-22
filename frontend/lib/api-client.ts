@@ -64,19 +64,25 @@ class ApiClient {
     }
     const baseUrl = this.getBaseUrl()
     
+    const abortController = new AbortController();
+    const timeoutId = setTimeout(() => abortController.abort(), 15000);
+    const signal = options?.signal || abortController.signal;
+
     let res: Response
     try {
-      res = await fetch(`${baseUrl}${path}`, { ...options, headers: { ...headers, ...options?.headers } })
+      res = await fetch(`${baseUrl}${path}`, { ...options, signal, headers: { ...headers, ...options?.headers } })
     } catch (networkErr: any) {
       if (typeof window !== 'undefined' && path.startsWith('/api')) {
         try {
-          res = await fetch(path, { ...options, headers: { ...headers, ...options?.headers } })
+          res = await fetch(path, { ...options, signal, headers: { ...headers, ...options?.headers } })
         } catch {
           throw new Error(`IncidentFlow server at ${baseUrl} could not be reached. Check network or server status.`)
         }
       } else {
         throw new Error(`IncidentFlow server at ${baseUrl} could not be reached. Check network or server status.`)
       }
+    } finally {
+      clearTimeout(timeoutId);
     }
 
     if (!res.ok) {

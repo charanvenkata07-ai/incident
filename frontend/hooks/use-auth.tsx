@@ -29,23 +29,48 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
 
   useEffect(() => {
+    let active = true;
     const initAuth = async () => {
-      const storedToken = localStorage.getItem('auth_token');
+      let storedToken: string | null = null;
+      try {
+        if (typeof window !== 'undefined') {
+          storedToken = localStorage.getItem('auth_token');
+        }
+      } catch {
+        storedToken = null;
+      }
+
       if (storedToken) {
-        setToken(storedToken);
+        if (active) setToken(storedToken);
         apiClient.setToken(storedToken);
         try {
-          const userData = await apiClient.get<User>('/api/auth/me');
-          setUser(userData);
+          // Timeout guard: 4000ms max for /api/auth/me during initial boot
+          const fetchPromise = apiClient.get<User>('/api/auth/me');
+          const timeoutPromise = new Promise<never>((_, reject) =>
+            setTimeout(() => reject(new Error('Auth request timed out')), 4000)
+          );
+          const userData = await Promise.race([fetchPromise, timeoutPromise]);
+          if (active) setUser(userData);
         } catch (error) {
-          localStorage.removeItem('auth_token');
-          setToken(null);
+          try {
+            if (typeof window !== 'undefined') {
+              localStorage.removeItem('auth_token');
+            }
+          } catch {}
+          if (active) {
+            setToken(null);
+            setUser(null);
+          }
           apiClient.clearToken();
         }
       }
-      setIsLoading(false);
+      if (active) setIsLoading(false);
     };
+
     initAuth();
+    return () => {
+      active = false;
+    };
   }, []);
 
   useEffect(() => {
@@ -69,7 +94,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
     const response = await apiClient.post<{ access_token: string }>('/api/auth/login', payload);
     const newToken = response.access_token;
-    localStorage.setItem('auth_token', newToken);
+    try {
+      localStorage.setItem('auth_token', newToken);
+    } catch {}
     setToken(newToken);
     apiClient.setToken(newToken);
     const userData = await apiClient.get<User>('/api/auth/me');
@@ -82,7 +109,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
-    localStorage.removeItem('auth_token');
+    try {
+      localStorage.removeItem('auth_token');
+    } catch {}
     setToken(null);
     setUser(null);
     apiClient.clearToken();
