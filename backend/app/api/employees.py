@@ -143,7 +143,9 @@ async def get_work(status: str = None, current_user: User = Depends(get_current_
     if not emp:
         return []
     
-    query = select(Incident).join(IncidentAssignment).where(
+    query = select(Incident, IncidentAssignment).join(
+        IncidentAssignment, Incident.id == IncidentAssignment.incident_id
+    ).where(
         IncidentAssignment.employee_id == emp.id,
         IncidentAssignment.is_active == True
     )
@@ -151,8 +153,26 @@ async def get_work(status: str = None, current_user: User = Depends(get_current_
         query = query.where(IncidentAssignment.status == status.upper())
         
     result = await db.execute(query)
-    assigned_incidents = list(result.scalars().all())
-    assigned_ids = {inc.id for inc in assigned_incidents}
+    rows = result.all()
+    assigned_incidents: list[IncidentBrief] = []
+    assigned_ids = set()
+
+    for inc, asgn in rows:
+        assigned_incidents.append(
+            IncidentBrief(
+                id=inc.id,
+                incident_number=inc.incident_number,
+                short_description=inc.short_description,
+                priority=inc.priority,
+                state=inc.state,
+                assignment_group=inc.assignment_group,
+                work_instructions=inc.work_instructions,
+                assigned_employee_name=current_user.full_name,
+                assignment_status=asgn.status,
+                assigned_at=asgn.assigned_at
+            )
+        )
+        assigned_ids.add(inc.id)
 
     # In SHADOW mode, also expose recommended synthetic tickets so engineers can experience the workflow
     shadow_query = select(AuditLog).where(
@@ -166,7 +186,20 @@ async def get_work(status: str = None, current_user: User = Depends(get_current_
             if slog.entity_id and slog.entity_id not in assigned_ids:
                 inc = await db.get(Incident, slog.entity_id)
                 if inc and (not status or inc.state == status.upper()):
-                    assigned_incidents.append(inc)
+                    assigned_incidents.append(
+                        IncidentBrief(
+                            id=inc.id,
+                            incident_number=inc.incident_number,
+                            short_description=inc.short_description,
+                            priority=inc.priority,
+                            state=inc.state,
+                            assignment_group=inc.assignment_group,
+                            work_instructions=inc.work_instructions,
+                            assigned_employee_name=current_user.full_name,
+                            assignment_status=inc.state,
+                            assigned_at=inc.created_at
+                        )
+                    )
                     assigned_ids.add(inc.id)
 
     return assigned_incidents

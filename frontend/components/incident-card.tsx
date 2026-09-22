@@ -26,10 +26,11 @@ export function IncidentCard({ incident }: { incident: IncidentBrief }) {
   const startMut = useStartWork();
   const completeMut = useCompleteWork();
 
-  const isAssigned = incident.state === 'ASSIGNED';
-  const isAcked = incident.state === 'ACKNOWLEDGED';
-  const isInProgress = incident.state === 'IN_PROGRESS';
-  const isCompleted = ['COMPLETED', 'RESOLVED', 'CLOSED'].includes(incident.state);
+  const effectiveState = incident.assignment_status || incident.state;
+  const isAssigned = effectiveState === 'ASSIGNED';
+  const isAcked = effectiveState === 'ACKNOWLEDGED';
+  const isInProgress = effectiveState === 'IN_PROGRESS';
+  const isCompleted = ['COMPLETED', 'RESOLVED', 'CLOSED'].includes(effectiveState);
 
   const taskDescription = incident.work_instructions || incident.short_description;
 
@@ -47,7 +48,7 @@ export function IncidentCard({ incident }: { incident: IncidentBrief }) {
             <div className="flex items-center space-x-2">
               <span className="font-mono text-xs font-bold text-zinc-900 dark:text-zinc-100">{incident.incident_number}</span>
               <StatusBadge status={incident.priority} type="priority" />
-              <StatusBadge status={incident.state} type="status" />
+              <StatusBadge status={effectiveState} type="status" />
             </div>
             {incident.assigned_at && (
               <span

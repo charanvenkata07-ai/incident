@@ -5,6 +5,7 @@ import { wsClient } from '@/lib/websocket';
 import { useAuth } from './use-auth';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
+import type { IncidentBrief } from '@/types';
 
 // Track seen event_ids to prevent duplicate popups
 const seenEventIds = new Set<string>();
@@ -46,13 +47,48 @@ export function useWebSocket() {
 
       const handleIncidentUpdated = (data: unknown) => {
         const d = data as Record<string, unknown>;
-        if (d?.incident_number) {
-          queryClient.invalidateQueries({ queryKey: ['incident', d.incident_number] });
+        const incNum = (d?.incident_number as string) || '';
+        const newStatus = ((d?.status as string) || (d?.state as string) || (d?.assignment_status as string)) as string | undefined;
+
+        if (incNum) {
+          if (newStatus) {
+            queryClient.setQueriesData<IncidentBrief[]>({ queryKey: ['my-work'] }, (old) => {
+              if (!old || !Array.isArray(old)) return old;
+              return old.map((item) =>
+                item.incident_number === incNum || item.id === incNum
+                  ? {
+                      ...item,
+                      state: newStatus,
+                      assignment_status: newStatus,
+                    }
+                  : item
+              );
+            });
+          }
+          queryClient.invalidateQueries({ queryKey: ['incident', incNum] });
         }
         queryClient.invalidateQueries({ queryKey: ['my-work'] });
       };
 
-      const handleMyWorkUpdated = () => {
+      const handleMyWorkUpdated = (data: unknown) => {
+        const d = data as Record<string, unknown>;
+        const incNum = (d?.incident_number as string) || '';
+        const newStatus = ((d?.status as string) || (d?.state as string) || (d?.assignment_status as string)) as string | undefined;
+
+        if (incNum && newStatus) {
+          queryClient.setQueriesData<IncidentBrief[]>({ queryKey: ['my-work'] }, (old) => {
+            if (!old || !Array.isArray(old)) return old;
+            return old.map((item) =>
+              item.incident_number === incNum || item.id === incNum
+                ? {
+                    ...item,
+                    state: newStatus,
+                    assignment_status: newStatus,
+                  }
+                : item
+            );
+          });
+        }
         queryClient.invalidateQueries({ queryKey: ['my-work'] });
       };
 
@@ -156,6 +192,7 @@ export function useWebSocket() {
       wsClient.on('INCIDENT_ASSIGNED', handleIncidentAssigned);
       wsClient.on('INCIDENT_UPDATED', handleIncidentUpdated);
       wsClient.on('MY_WORK_UPDATED', handleMyWorkUpdated);
+      wsClient.on('INCIDENT_ACKNOWLEDGED', handleMyWorkUpdated);
       wsClient.on('GROUP_NOTICE_CREATED', handleGroupNotice);
       wsClient.on('NOTIFICATION_CREATED', handleNotification);
       wsClient.on('RECONNECTED', handleReconnected);
@@ -165,6 +202,7 @@ export function useWebSocket() {
         wsClient.off('INCIDENT_ASSIGNED', handleIncidentAssigned);
         wsClient.off('INCIDENT_UPDATED', handleIncidentUpdated);
         wsClient.off('MY_WORK_UPDATED', handleMyWorkUpdated);
+        wsClient.off('INCIDENT_ACKNOWLEDGED', handleMyWorkUpdated);
         wsClient.off('GROUP_NOTICE_CREATED', handleGroupNotice);
         wsClient.off('NOTIFICATION_CREATED', handleNotification);
         wsClient.off('RECONNECTED', handleReconnected);

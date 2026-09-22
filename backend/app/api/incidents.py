@@ -164,11 +164,27 @@ async def get_incident(incident_number: str, current_user: User = Depends(get_cu
 @router.post("/{incident_id}/acknowledge")
 async def acknowledge_incident(incident_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     assignment = await _verify_assignment_access(incident_id, current_user, db)
-        
-    assignment.status = 'ACKNOWLEDGED'
-    assignment.acknowledged_at = datetime.now(timezone.utc)
-    
     inc = await db.get(Incident, assignment.incident_id)
+
+    # Idempotent check: if already acknowledged, do not duplicate audit logs or broadcasts
+    if assignment.status == 'ACKNOWLEDGED':
+        if inc and inc.state != 'ACKNOWLEDGED':
+            inc.state = 'ACKNOWLEDGED'
+            await db.commit()
+        return {
+            "status": "success",
+            "message": "Incident already acknowledged",
+            "incident_number": inc.incident_number if inc else None,
+            "state": "ACKNOWLEDGED",
+            "assignment_status": "ACKNOWLEDGED",
+            "timestamp": assignment.acknowledged_at.isoformat() if assignment.acknowledged_at else None
+        }
+
+    now = datetime.now(timezone.utc)
+    assignment.status = 'ACKNOWLEDGED'
+    assignment.acknowledged_at = now
+    if inc:
+        inc.state = 'ACKNOWLEDGED'
 
     audit_service = AuditService(db)
     await audit_service.log('INCIDENT_ACKNOWLEDGED', 'INCIDENT', assignment.incident_id, actor_id=current_user.id)
@@ -179,6 +195,8 @@ async def acknowledge_incident(incident_id: str, current_user: User = Depends(ge
         "incident_id": str(assignment.incident_id),
         "incident_number": inc.incident_number if inc else None,
         "status": "ACKNOWLEDGED",
+        "state": "ACKNOWLEDGED",
+        "assignment_status": "ACKNOWLEDGED",
         "actor_name": current_user.full_name,
         "timestamp": assignment.acknowledged_at.isoformat()
     }
@@ -195,7 +213,13 @@ async def acknowledge_incident(incident_id: str, current_user: User = Depends(ge
         "event_type": "INCIDENT_STATUS_CHANGE",
         **event_payload
     })
-    return {"status": "success"}
+    return {
+        "status": "success",
+        "incident_number": inc.incident_number if inc else None,
+        "state": "ACKNOWLEDGED",
+        "assignment_status": "ACKNOWLEDGED",
+        "timestamp": assignment.acknowledged_at.isoformat()
+    }
 
 @router.post("/{incident_id}/start")
 async def start_incident(incident_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):

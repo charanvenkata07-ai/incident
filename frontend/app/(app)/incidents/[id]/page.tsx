@@ -23,9 +23,10 @@ export default function IncidentDetailPage() {
   if (isLoading) return <IncidentDetailSkeleton />;
   if (!incident) return <div>Incident not found</div>;
 
-  const isAssigned = incident.state === 'ASSIGNED';
-  const isAcked = incident.state === 'ACKNOWLEDGED';
-  const isInProgress = incident.state === 'IN_PROGRESS';
+  const effectiveState = incident.current_assignment?.status || incident.state;
+  const isAssigned = effectiveState === 'ASSIGNED';
+  const isAcked = effectiveState === 'ACKNOWLEDGED';
+  const isInProgress = effectiveState === 'IN_PROGRESS';
 
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="space-y-6 max-w-4xl mx-auto">
@@ -37,7 +38,7 @@ export default function IncidentDetailPage() {
         <div className="flex items-center space-x-3 mb-2">
           <h1 className="text-2xl font-bold tracking-tight">{incident.incident_number}</h1>
           <StatusBadge status={incident.priority} type="priority" />
-          <StatusBadge status={incident.state} type="status" />
+          <StatusBadge status={effectiveState} type="status" />
           <span className="text-xs bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 font-semibold px-2 py-0.5 rounded">
             SHADOW MODE: SIMULATION ONLY
           </span>
