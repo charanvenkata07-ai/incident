@@ -68,6 +68,7 @@ export function useWebSocket() {
           queryClient.invalidateQueries({ queryKey: ['incident', incNum] });
         }
         queryClient.invalidateQueries({ queryKey: ['my-work'] });
+        queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
       };
 
       const handleMyWorkUpdated = (data: unknown) => {
@@ -90,6 +91,7 @@ export function useWebSocket() {
           });
         }
         queryClient.invalidateQueries({ queryKey: ['my-work'] });
+        queryClient.invalidateQueries({ queryKey: ['admin-dashboard'] });
       };
 
       const handleGroupNotice = (data: unknown) => {
@@ -193,6 +195,7 @@ export function useWebSocket() {
       wsClient.on('INCIDENT_UPDATED', handleIncidentUpdated);
       wsClient.on('MY_WORK_UPDATED', handleMyWorkUpdated);
       wsClient.on('INCIDENT_ACKNOWLEDGED', handleMyWorkUpdated);
+      wsClient.on('INCIDENT_COMPLETED', handleMyWorkUpdated);
       wsClient.on('GROUP_NOTICE_CREATED', handleGroupNotice);
       wsClient.on('NOTIFICATION_CREATED', handleNotification);
       wsClient.on('RECONNECTED', handleReconnected);
@@ -203,6 +206,7 @@ export function useWebSocket() {
         wsClient.off('INCIDENT_UPDATED', handleIncidentUpdated);
         wsClient.off('MY_WORK_UPDATED', handleMyWorkUpdated);
         wsClient.off('INCIDENT_ACKNOWLEDGED', handleMyWorkUpdated);
+        wsClient.off('INCIDENT_COMPLETED', handleMyWorkUpdated);
         wsClient.off('GROUP_NOTICE_CREATED', handleGroupNotice);
         wsClient.off('NOTIFICATION_CREATED', handleNotification);
         wsClient.off('RECONNECTED', handleReconnected);

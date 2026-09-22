@@ -103,24 +103,43 @@ async def health(db: AsyncSession = Depends(get_db)):
 async def live_assignments(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
         select(IncidentAssignment)
-        .where(IncidentAssignment.is_active == True)
-        .order_by(desc(IncidentAssignment.assigned_at))
-        .limit(10)
+        .where(
+            or_(
+                IncidentAssignment.is_active == True,
+                IncidentAssignment.status == "COMPLETED"
+            )
+        )
+        .order_by(
+            desc(
+                func.coalesce(
+                    IncidentAssignment.completed_at,
+                    IncidentAssignment.started_at,
+                    IncidentAssignment.acknowledged_at,
+                    IncidentAssignment.assigned_at
+                )
+            )
+        )
+        .limit(20)
     )
     assignments = result.scalars().all()
+    seen_incidents = set()
     out = []
     for a in assignments:
+        if a.incident_id in seen_incidents:
+            continue
         inc = await db.get(Incident, a.incident_id)
         emp = await db.get(Employee, a.employee_id)
         user = await db.get(User, emp.user_id) if emp else None
         if inc and user:
+            seen_incidents.add(a.incident_id)
             out.append({
                 "incident_number": inc.incident_number,
                 "short_description": inc.short_description,
                 "employee_name": user.full_name,
                 "assignment_type": a.assignment_type,
                 "status": a.status,
-                "assigned_at": a.assigned_at
+                "assigned_at": a.assigned_at,
+                "completed_at": a.completed_at
             })
     return out
 

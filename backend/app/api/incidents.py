@@ -265,7 +265,15 @@ async def start_incident(incident_id: str, current_user: User = Depends(get_curr
 async def complete_incident(incident_id: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):
     assignment = await _verify_assignment_access(incident_id, current_user, db)
     if assignment.status == 'COMPLETED':
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Incident assignment is already completed")
+        result_inc = await db.execute(select(Incident).where(Incident.id == assignment.incident_id))
+        incident = result_inc.scalar_one_or_none()
+        return {
+            "status": "success",
+            "message": "Incident assignment is already completed",
+            "incident_number": incident.incident_number if incident else None,
+            "state": incident.state if incident else "RESOLVED",
+            "assignment_status": "COMPLETED"
+        }
 
     now = datetime.now(timezone.utc)
     assignment.status = 'COMPLETED'
@@ -287,11 +295,16 @@ async def complete_incident(incident_id: str, current_user: User = Depends(get_c
         "incident_id": str(assignment.incident_id),
         "incident_number": incident.incident_number if incident else None,
         "status": "COMPLETED",
+        "state": "RESOLVED",
+        "assignment_status": "COMPLETED",
         "actor_name": current_user.full_name,
+        "employee_name": current_user.full_name,
+        "completed_at": now.isoformat(),
         "timestamp": now.isoformat()
     }
     await ws_manager.broadcast_all('INCIDENT_UPDATED', event_payload)
-    await ws_manager.send_to_user(str(current_user.id), 'MY_WORK_UPDATED', event_payload)
+    await ws_manager.broadcast_all('INCIDENT_COMPLETED', event_payload)
+    await ws_manager.broadcast_all('MY_WORK_UPDATED', event_payload)
 
     target_team_id = await _get_incident_team_id(db, incident, current_user)
     if target_team_id:
@@ -303,7 +316,13 @@ async def complete_incident(incident_id: str, current_user: User = Depends(get_c
         "event_type": "INCIDENT_STATUS_CHANGE",
         **event_payload
     })
-    return {"status": "success", "message": "Incident completed successfully"}
+    return {
+        "status": "success",
+        "message": "Incident completed successfully",
+        "incident_number": incident.incident_number if incident else None,
+        "state": "RESOLVED",
+        "assignment_status": "COMPLETED"
+    }
 
 @router.get("/{incident_number}/lifecycle")
 async def get_incident_lifecycle(incident_number: str, current_user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)):

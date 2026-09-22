@@ -155,3 +155,120 @@ async def test_employee_task_acknowledgement_sync():
                 select(AuditLog).where(AuditLog.action == "INCIDENT_ACKNOWLEDGED", AuditLog.entity_id == uuid.UUID(inc_id_str))
             )).scalars().all()
             assert len(audits_after) == count_before, "Duplicate acknowledge must not create redundant audit logs"
+
+
+@pytest.mark.asyncio
+async def test_employee_complete_incident_reflected_on_admin_dashboard():
+    """
+    Verify complete incident lifecycle through completion:
+    1. Incident assigned to Employee -> Admin Live Board shows ASSIGNED.
+    2. Employee acknowledges -> Admin Live Board shows ACKNOWLEDGED.
+    3. Employee completes work -> Incident is NOT removed from Admin Live Board;
+       Admin Live Board shows COMPLETED with employee's name.
+    4. Employee My Work (/api/me/work) returns state == 'RESOLVED' and assignment_status == 'COMPLETED'.
+    5. Duplicate completion request is idempotent (returns 200 OK).
+    """
+    transport = ASGITransport(app=app)
+    async with AsyncClient(transport=transport, base_url="http://test") as client:
+        # 1. Setup employee, admin, and test incident
+        async with async_session_maker() as session:
+            team_res = await session.execute(select(Team).limit(1))
+            team = team_res.scalar_one()
+
+            emp_res = await session.execute(
+                select(Employee, User).join(User, Employee.user_id == User.id).where(
+                    Employee.team_id == team.id,
+                    User.is_active == True
+                ).limit(1)
+            )
+            emp1, user1 = emp_res.one()
+
+            admin_res = await session.execute(select(User).where(User.role == "ADMIN", User.is_active == True).limit(1))
+            admin_user = admin_res.scalar_one()
+
+            inc_number = f"INC-TEST-COMP-{uuid.uuid4().hex[:6].upper()}"
+            incident = Incident(
+                id=uuid.uuid4(),
+                incident_number=inc_number,
+                short_description="Work Completion Admin Dashboard Verification",
+                priority="P1",
+                state="ASSIGNED",
+                assignment_group=team.name,
+                assigned_to=user1.full_name,
+                work_instructions="Complete task and verify it is not removed from admin dashboard",
+                created_at=datetime.now(timezone.utc),
+            )
+            session.add(incident)
+            await session.flush()
+
+            assignment = IncidentAssignment(
+                id=uuid.uuid4(),
+                incident_id=incident.id,
+                employee_id=emp1.id,
+                assignment_type="AUTOMATIC",
+                status="ASSIGNED",
+                reason="Completion test assignment",
+                assigned_at=datetime.now(timezone.utc),
+                is_active=True
+            )
+            session.add(assignment)
+            await session.commit()
+            inc_id_str = str(incident.id)
+
+        emp_token = create_access_token(data={"sub": str(user1.id), "role": user1.role})
+        emp_headers = {"Authorization": f"Bearer {emp_token}"}
+
+        admin_token = create_access_token(data={"sub": str(admin_user.id), "role": admin_user.role})
+        admin_headers = {"Authorization": f"Bearer {admin_token}"}
+
+        # 2. Check Admin Live Board initially has the incident as ASSIGNED
+        live_res1 = await client.get("/api/admin/assignments/live", headers=admin_headers)
+        assert live_res1.status_code == 200
+        live_items1 = live_res1.json()
+        item1 = next((a for a in live_items1 if a["incident_number"] == inc_number), None)
+        assert item1 is not None, "Incident must appear on Admin Live Board when ASSIGNED"
+        assert item1["status"] == "ASSIGNED"
+        assert item1["employee_name"] == user1.full_name
+
+        # 3. Employee acknowledges task
+        ack_res = await client.post(f"/api/incidents/{inc_id_str}/acknowledge", headers=emp_headers)
+        assert ack_res.status_code == 200
+
+        # Check Admin Live Board shows ACKNOWLEDGED
+        live_res2 = await client.get("/api/admin/assignments/live", headers=admin_headers)
+        assert live_res2.status_code == 200
+        item2 = next((a for a in live_res2.json() if a["incident_number"] == inc_number), None)
+        assert item2 is not None, "Incident must remain on Admin Live Board after ACKNOWLEDGED"
+        assert item2["status"] == "ACKNOWLEDGED"
+
+        # 4. Employee completes task
+        comp_res = await client.post(f"/api/incidents/{inc_id_str}/complete", headers=emp_headers)
+        assert comp_res.status_code == 200
+        comp_data = comp_res.json()
+        assert comp_data["status"] == "success"
+        assert comp_data["assignment_status"] == "COMPLETED"
+        assert comp_data["state"] == "RESOLVED"
+
+        # 5. CRITICAL CHECK: Verify Incident is NOT removed from Admin Dashboard Live Board
+        live_res3 = await client.get("/api/admin/assignments/live", headers=admin_headers)
+        assert live_res3.status_code == 200
+        live_items3 = live_res3.json()
+        item3 = next((a for a in live_items3 if a["incident_number"] == inc_number), None)
+        assert item3 is not None, "Incident must NOT be removed from Admin Dashboard after work completion!"
+        assert item3["status"] == "COMPLETED", "Admin Dashboard must display status as COMPLETED"
+        assert item3["employee_name"] == user1.full_name, "Employee name must remain on Admin Dashboard"
+
+        # 6. Verify Employee My Work includes the completed task
+        my_work = await client.get("/api/me/work", headers=emp_headers)
+        assert my_work.status_code == 200
+        my_work_items = my_work.json()
+        item_work = next((w for w in my_work_items if w["incident_number"] == inc_number), None)
+        assert item_work is not None, "Employee My Work must include completed task"
+        assert item_work["state"] == "RESOLVED"
+        assert item_work["assignment_status"] == "COMPLETED"
+
+        # 7. Verify Idempotency of complete call
+        comp_dup = await client.post(f"/api/incidents/{inc_id_str}/complete", headers=emp_headers)
+        assert comp_dup.status_code == 200
+        assert comp_dup.json()["status"] == "success"
+        assert comp_dup.json()["assignment_status"] == "COMPLETED"

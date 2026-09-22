@@ -5,7 +5,7 @@ from datetime import date, timezone, datetime
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File, Form, status
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, desc, func
+from sqlalchemy import select, desc, func, or_
 from app.core.database import get_db
 from app.core.security import get_current_user
 from app.core.config import settings
@@ -147,7 +147,10 @@ async def get_work(status: str = None, current_user: User = Depends(get_current_
         IncidentAssignment, Incident.id == IncidentAssignment.incident_id
     ).where(
         IncidentAssignment.employee_id == emp.id,
-        IncidentAssignment.is_active == True
+        or_(
+            IncidentAssignment.is_active == True,
+            IncidentAssignment.status == "COMPLETED"
+        )
     )
     if status:
         query = query.where(IncidentAssignment.status == status.upper())

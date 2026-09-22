@@ -60,13 +60,13 @@ export function getPriorityColor(priority?: string | null): string {
 export function getStatusColor(status?: string | null): string {
   if (!status) return 'default';
   switch (String(status).toUpperCase()) {
-    case 'NEW':
+    case 'NEW': return 'default';
     case 'ASSIGNED': return 'info';
     case 'ACKNOWLEDGED': return 'warning';
-    case 'IN_PROGRESS': return 'success';
+    case 'IN_PROGRESS': return 'info';
     case 'COMPLETED':
     case 'RESOLVED':
-    case 'CLOSED': return 'default';
+    case 'CLOSED': return 'success';
     default: return 'default';
   }
 }

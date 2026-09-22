@@ -31,14 +31,37 @@ export default function AdminDashboardPage() {
   React.useEffect(() => {
     fetchLive();
     // Drive live list updates via WebSocket events — no polling timer needed
-    const handleUpdate = () => { fetchLive(); refetch(); };
+    const handleUpdate = (data?: unknown) => {
+      const d = data as Record<string, unknown> | undefined;
+      const incNum = (d?.incident_number as string) || (d?.incident_id as string);
+      const newStatus = ((d?.status as string) || (d?.state as string) || (d?.assignment_status as string)) as string | undefined;
+
+      if (incNum && newStatus) {
+        setLiveList(prev =>
+          prev.map(item =>
+            item?.incident_number === incNum || item?.id === incNum
+              ? { ...item, status: newStatus }
+              : item
+          )
+        );
+      }
+      fetchLive();
+      refetch();
+    };
+
     const { wsClient } = require('@/lib/websocket');
     wsClient.on('INCIDENT_ASSIGNED', handleUpdate);
     wsClient.on('INCIDENT_UPDATED', handleUpdate);
+    wsClient.on('INCIDENT_ACKNOWLEDGED', handleUpdate);
+    wsClient.on('INCIDENT_COMPLETED', handleUpdate);
+    wsClient.on('MY_WORK_UPDATED', handleUpdate);
     wsClient.on('RECONNECTED', handleUpdate);
     return () => {
       wsClient.off('INCIDENT_ASSIGNED', handleUpdate);
       wsClient.off('INCIDENT_UPDATED', handleUpdate);
+      wsClient.off('INCIDENT_ACKNOWLEDGED', handleUpdate);
+      wsClient.off('INCIDENT_COMPLETED', handleUpdate);
+      wsClient.off('MY_WORK_UPDATED', handleUpdate);
       wsClient.off('RECONNECTED', handleUpdate);
     };
   }, [fetchLive, refetch]);
@@ -253,7 +276,15 @@ export default function AdminDashboardPage() {
                   <div className="flex items-center justify-between sm:justify-end gap-3 shrink-0">
                     <div className="text-right">
                       <div className="text-xs font-semibold">{item?.employee_name || 'Assigned'}</div>
-                      <div className="text-[11px] text-muted-foreground">Assigned</div>
+                      <div className="text-[11px] text-muted-foreground">
+                        {item?.status === 'COMPLETED'
+                          ? 'Work Completed'
+                          : item?.status === 'IN_PROGRESS'
+                          ? 'In Progress'
+                          : item?.status === 'ACKNOWLEDGED'
+                          ? 'Acknowledged'
+                          : 'Assigned'}
+                      </div>
                     </div>
                     <StatusBadge status={item?.status} type="status" />
                   </div>
